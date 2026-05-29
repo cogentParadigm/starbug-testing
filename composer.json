@@ -1,0 +1,29 @@
+{
+  "name": "starbug/testing",
+  "description": "Starbug testing package.",
+  "type": "library",
+  "license": "GPL-3.0-or-later",
+  "authors": [
+    {
+      "name": "Ali Gangji",
+      "homepage": "https://github.com/cogentParadigm"
+    }
+  ],
+  "require": {
+    "php": ">=8.0",
+    "psr/http-message": "^1.0",
+    "psr/http-server-handler": "^1.0",
+    "guzzlehttp/psr7": "^1.7",
+    "starbug/bundle": "^1.0",
+    "starbug/auth": "^0.12.0"
+  },
+  "require-dev": {
+    "starbug/devel": "^1.5",
+    "phpunit/phpunit": "^9.0"
+  },
+  "autoload": {
+    "psr-4": {
+      "Starbug\\Testing\\": "src/"
+    }
+  }
+}
