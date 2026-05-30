@@ -3,7 +3,6 @@ namespace Starbug\Testing;
 
 use GuzzleHttp\Psr7\ServerRequest;
 use Psr\Http\Message\ResponseInterface;
-use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use Starbug\Bundle\Bundle;
 
@@ -14,7 +13,7 @@ use Starbug\Bundle\Bundle;
  * It maintains cookie state via a shared Bundle jar and auto-follows
  * redirects up to a configured maximum depth.
  */
-class DirectDriver {
+class DirectDriver extends AbstractWebDriver {
 
   /**
    * Maximum number of redirects to follow automatically.
@@ -32,21 +31,6 @@ class DirectDriver {
   protected Bundle $jar;
 
   /**
-   * The last response captured.
-   */
-  protected ?ResponseInterface $lastResponse = null;
-
-  /**
-   * The response body of the last request.
-   */
-  protected string $lastBody = '';
-
-  /**
-   * The current request path (after any redirects).
-   */
-  protected string $currentPath = '/';
-
-  /**
    * @param RequestHandlerInterface $handler The application request handler.
    * @param Bundle $jar Shared cookie jar.
    * @param int $maxRedirects Maximum redirect follows (default 5).
@@ -61,18 +45,6 @@ class DirectDriver {
     $this->maxRedirects = $maxRedirects;
   }
 
-  /**
-   * Dispatch a request and return the final response.
-   *
-   * Cookies from the shared jar are seeded into the request.
-   * Redirects are followed automatically up to $maxRedirects.
-   *
-   * @param string $method HTTP method.
-   * @param string $path Request path (e.g. "/login").
-   * @param array $data POST/GET data.
-   * @param array $headers Additional headers.
-   * @return ResponseInterface The final response.
-   */
   public function request(
     string $method,
     string $path,
@@ -93,7 +65,6 @@ class DirectDriver {
 
     $this->lastResponse = $response;
     $this->lastBody = (string) $response->getBody();
-    $this->currentPath = $path;
 
     return $response;
   }
@@ -181,59 +152,7 @@ class DirectDriver {
     return $location;
   }
 
-  /**
-   * Get the status code of the last response.
-   */
-  public function getStatusCode(): int {
-    if (!$this->lastResponse) {
-      throw new \RuntimeException('No request has been made yet.');
-    }
-    return $this->lastResponse->getStatusCode();
-  }
-
-  /**
-   * Get the body of the last response.
-   */
-  public function getResponseBody(): string {
-    return $this->lastBody;
-  }
-
-  /**
-   * Get the current request path.
-   */
-  public function getCurrentPath(): string {
-    return $this->currentPath;
-  }
-
-  /**
-   * Get a cookie value from the shared jar.
-   */
   public function getCookie(string $name): ?string {
     return $this->jar->get($name);
-  }
-
-  /**
-   * Extract the hidden CSRF token (oid) from the last response body.
-   *
-   * Looks for an input with name="oid".
-   *
-   * @return string|null The token value, or null if not found.
-   */
-  public function extractHiddenOid(): ?string {
-    if (empty($this->lastBody)) {
-      return null;
-    }
-
-    $dom = new \DOMDocument();
-    // Suppress warnings from malformed HTML.
-    @$dom->loadHTML($this->lastBody);
-    $xpath = new \DOMXPath($dom);
-
-    $inputs = $xpath->query('//input[@name="oid"]');
-    if ($inputs->length > 0) {
-      return $inputs->item(0)->getAttribute('value');
-    }
-
-    return null;
   }
 }
