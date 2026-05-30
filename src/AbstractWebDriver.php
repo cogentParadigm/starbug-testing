@@ -1,6 +1,9 @@
 <?php
 namespace Starbug\Testing;
 
+use RuntimeException;
+use DOMDocument;
+use DOMXPath;
 use Psr\Http\Message\ResponseInterface;
 
 /**
@@ -33,12 +36,12 @@ abstract class AbstractWebDriver implements WebDriverInterface {
    */
   public function followLink(string $text): void {
     if (empty($this->lastBody)) {
-      throw new \RuntimeException('No response body available to follow link.');
+      throw new RuntimeException('No response body available to follow link.');
     }
 
-    $dom = new \DOMDocument();
+    $dom = new DOMDocument();
     @$dom->loadHTML($this->lastBody);
-    $xpath = new \DOMXPath($dom);
+    $xpath = new DOMXPath($dom);
 
     $links = $xpath->query('//a');
     foreach ($links as $link) {
@@ -51,7 +54,7 @@ abstract class AbstractWebDriver implements WebDriverInterface {
       }
     }
 
-    throw new \RuntimeException("Link with text '{$text}' not found.");
+    throw new RuntimeException("Link with text '{$text}' not found.");
   }
 
   /**
@@ -94,9 +97,9 @@ abstract class AbstractWebDriver implements WebDriverInterface {
       return $errors;
     }
 
-    $dom = new \DOMDocument();
+    $dom = new DOMDocument();
     @$dom->loadHTML($this->lastBody);
-    $xpath = new \DOMXPath($dom);
+    $xpath = new DOMXPath($dom);
 
     $inputs = $xpath->query('//input[@name] | //select[@name] | //textarea[@name]');
     foreach ($inputs as $input) {
@@ -123,7 +126,7 @@ abstract class AbstractWebDriver implements WebDriverInterface {
 
   public function getStatusCode(): int {
     if (!$this->lastResponse) {
-      throw new \RuntimeException('No request has been made yet.');
+      throw new RuntimeException('No request has been made yet.');
     }
     return $this->lastResponse->getStatusCode();
   }
@@ -149,9 +152,9 @@ abstract class AbstractWebDriver implements WebDriverInterface {
       return null;
     }
 
-    $dom = new \DOMDocument();
+    $dom = new DOMDocument();
     @$dom->loadHTML($this->lastBody);
-    $xpath = new \DOMXPath($dom);
+    $xpath = new DOMXPath($dom);
 
     $inputs = $xpath->query('//input[@name="oid"]');
     if ($inputs->length > 0) {

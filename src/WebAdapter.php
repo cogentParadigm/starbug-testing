@@ -11,7 +11,8 @@ use Psr\Http\Message\ResponseInterface;
  */
 abstract class WebAdapter {
 
-  public function __construct(protected WebDriverInterface $driver) {}
+  public function __construct(protected WebDriverInterface $driver) {
+  }
 
   /**
    * Navigate to a path via GET.

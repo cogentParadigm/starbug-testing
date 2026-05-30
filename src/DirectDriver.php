@@ -1,6 +1,9 @@
 <?php
 namespace Starbug\Testing;
 
+use GuzzleHttp\Psr7\Utils;
+use Psr\Http\Message\UriInterface;
+use GuzzleHttp\Psr7\Uri;
 use GuzzleHttp\Psr7\ServerRequest;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Server\RequestHandlerInterface;
@@ -95,7 +98,7 @@ class DirectDriver extends AbstractWebDriver {
     if (in_array(strtoupper($method), ['POST', 'PUT', 'PATCH'], true) && !empty($data)) {
       $request = $request
         ->withHeader('Content-Type', 'application/x-www-form-urlencoded')
-        ->withBody(\GuzzleHttp\Psr7\Utils::streamFor(http_build_query($data)));
+        ->withBody(Utils::streamFor(http_build_query($data)));
     }
 
     // Add query params for GET.
@@ -121,12 +124,12 @@ class DirectDriver extends AbstractWebDriver {
   /**
    * Build a URI from a path string.
    */
-  protected function buildUri(string $path): \Psr\Http\Message\UriInterface {
+  protected function buildUri(string $path): UriInterface {
     // Ensure path starts with "/".
     if (!str_starts_with($path, '/')) {
       $path = '/' . $path;
     }
-    return new \GuzzleHttp\Psr7\Uri('https://localhost' . $path);
+    return new Uri('https://localhost' . $path);
   }
 
   /**

@@ -25,5 +25,9 @@
     "psr-4": {
       "Starbug\\Testing\\": "src/"
     }
+  },
+  "scripts": {
+    "phpcs": "vendor/bin/phpcs --extensions=php --standard=vendor/starbug/standard/phpcs.xml --ignore=./vendor/ ./",
+    "phpcbf": "vendor/bin/phpcbf --extensions=php --standard=vendor/starbug/standard/phpcs.xml --ignore=./vendor/ ./"
   }
 }
