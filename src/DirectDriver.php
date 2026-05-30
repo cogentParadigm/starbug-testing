@@ -47,17 +47,15 @@ class DirectDriver extends AbstractWebDriver {
    * @param string $baseUrl Scheme + host (default "https://localhost").
    * @param string $basePath App mount point (default "/").
    * @param int $maxRedirects Maximum redirect follows (default 5).
-   * @param string|null $csrfFieldName Hidden input name for CSRF auto-injection.
    */
   public function __construct(
     RequestHandlerInterface $handler,
     Traversable|array $jar,
     string $baseUrl = 'https://localhost',
     string $basePath = '/',
-    int $maxRedirects = 5,
-    ?string $csrfFieldName = null
+    int $maxRedirects = 5
   ) {
-    parent::__construct($baseUrl, $basePath, $csrfFieldName);
+    parent::__construct($baseUrl, $basePath);
     $this->handler = $handler;
     $this->jar = $jar;
     $this->maxRedirects = $maxRedirects;

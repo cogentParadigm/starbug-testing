@@ -107,17 +107,20 @@ interface WebDriverInterface {
   /**
    * Press a button by its text and submit the form.
    *
-   * Finds the button, resolves its form, gathers all filled values,
-   * auto-extracts CSRF if a csrfFieldName is configured, and submits.
+   * Finds the button, resolves its form, gathers all filled values
+   * (hidden inputs travel automatically via DomCrawler), and submits.
    */
   public function pressButton(string $button): void;
 
   /**
-   * Submit a form via POST after extracting the CSRF token.
+   * Submit a form via DomCrawler's Form class.
+   *
+   * GETs the page, finds the form (optionally scoped by $formSelector),
+   * sets values, and submits. Hidden inputs travel automatically.
    *
    * Bulk alternative to fillField + pressButton.
    */
-  public function submitForm(string $path, array $data): void;
+  public function submitForm(string $path, array $data, ?string $formSelector = null): void;
 
   /**
    * Download content from a path via GET.

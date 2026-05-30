@@ -140,8 +140,7 @@ class AbstractWebDriverTest extends TestCase {
     $this->assertSame('hello', $this->driver->capturedRequests[0]['data']['foo']);
   }
 
-  public function testPressButtonAutoExtractsCsrf(): void {
-    $this->driver->setCsrfFieldName('oid');
+  public function testPressButtonIncludesHiddenFields(): void {
     $this->driver->setTestBody('<form action="/submit" method="post"><input type="hidden" name="oid" value="xyz789"/><input name="bar"/><button type="submit">Submit</button></form>');
     $this->driver->fillField('bar', 'world');
     $this->driver->pressButton('Submit');
@@ -177,13 +176,12 @@ class AbstractWebDriverTest extends TestCase {
   }
 
   public function testSubmitFormBulkApi(): void {
-    $this->driver->setCsrfFieldName('oid');
     $this->driver->setTestBody('<form action="/create" method="post"><input type="hidden" name="oid" value="abc"/><input name="name"/></form>');
     $this->driver->submitForm('/create', ['name' => 'test']);
     $this->assertCount(2, $this->driver->capturedRequests);
-    // First request is GET to fetch CSRF.
+    // First request is GET to load the form page.
     $this->assertSame('GET', $this->driver->capturedRequests[0]['method']);
-    // Second request is POST with data + oid.
+    // Second request is POST via DomCrawler Form with data + hidden oid.
     $this->assertSame('POST', $this->driver->capturedRequests[1]['method']);
     $this->assertSame('test', $this->driver->capturedRequests[1]['data']['name']);
     $this->assertSame('abc', $this->driver->capturedRequests[1]['data']['oid']);

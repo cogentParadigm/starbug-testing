@@ -19,8 +19,6 @@ use Symfony\Component\DomCrawler\Crawler;
  * - $baseUrl    Scheme + host (e.g. "https://localhost")
  * - $basePath   App mount point (e.g. "/myapp/"). Paths passed to the
  *               driver are app-relative; basePath is prepended internally.
- * - $csrfFieldName  If set, pressButton() and submitForm() auto-extract
- *                   and inject this hidden form field.
  */
 abstract class AbstractWebDriver implements WebDriverInterface {
 
@@ -63,26 +61,17 @@ abstract class AbstractWebDriver implements WebDriverInterface {
   protected string $basePath = '/';
 
   /**
-   * CSRF hidden input name. When set, pressButton() and submitForm()
-   * will auto-extract and include this field.
-   */
-  protected ?string $csrfFieldName = null;
-
-  /**
    * Create a new AbstractWebDriver.
    *
    * @param string $baseUrl Scheme + host (default "https://localhost").
    * @param string $basePath App mount point (default "/").
-   * @param string|null $csrfFieldName Hidden input name for CSRF auto-injection (default null).
    */
   public function __construct(
     string $baseUrl = 'https://localhost',
-    string $basePath = '/',
-    ?string $csrfFieldName = null
+    string $basePath = '/'
   ) {
     $this->baseUrl = rtrim($baseUrl, '/');
     $this->basePath = $this->normalizeBasePath($basePath);
-    $this->csrfFieldName = $csrfFieldName;
   }
 
   /**
@@ -266,14 +255,6 @@ abstract class AbstractWebDriver implements WebDriverInterface {
     $form = $btn->first()->form();
     $data = $this->formValues + $form->getPhpValues();
 
-    // Auto-extract CSRF token if configured.
-    if ($this->csrfFieldName !== null) {
-      $token = $this->extractHiddenField($this->csrfFieldName);
-      if ($token !== null && !isset($data[$this->csrfFieldName])) {
-        $data[$this->csrfFieldName] = $token;
-      }
-    }
-
     $uri = $form->getUri();
     $method = strtoupper($form->getMethod());
 
@@ -291,16 +272,40 @@ abstract class AbstractWebDriver implements WebDriverInterface {
 
   /**
    * {@inheritdoc}
+   *
+   * @throws RuntimeException if no form is found on the page.
    */
-  public function submitForm(string $path, array $data): void {
+  public function submitForm(string $path, array $data, ?string $formSelector = null): void {
     $this->request('GET', $path);
-    if ($this->csrfFieldName !== null) {
-      $token = $this->extractHiddenField($this->csrfFieldName);
-      if ($token !== null) {
-        $data[$this->csrfFieldName] = $token;
-      }
+
+    $crawler = $this->getCrawler();
+    if ($formSelector !== null) {
+      $formNode = $crawler->filter($formSelector);
+    } else {
+      $formNode = $crawler->filter('form');
     }
-    $this->request('POST', $path, $data);
+
+    if ($formNode->count() === 0) {
+      throw new RuntimeException(
+        "No form found" . ($formSelector ? " matching '{$formSelector}'" : "") . " on page {$path}."
+      );
+    }
+
+    $form = $formNode->first()->form();
+    $form->setValues($data);
+
+    $uri = $form->getUri();
+    $method = strtoupper($form->getMethod());
+
+    // Extract app-relative path from absolute URI.
+    if (str_starts_with($uri, $this->baseUrl)) {
+      $uri = parse_url($uri, PHP_URL_PATH) ?: '/';
+    }
+    if ($this->basePath !== '/' && str_starts_with($uri, $this->basePath)) {
+      $uri = '/' . ltrim(substr($uri, strlen($this->basePath)), '/');
+    }
+
+    $this->request($method, $uri, $form->getPhpValues());
   }
 
   /**
@@ -386,6 +391,7 @@ abstract class AbstractWebDriver implements WebDriverInterface {
    * Extract the value of a hidden input by its name attribute.
    *
    * @param string $name The input name to search for.
+   *
    * @return string|null The input value, or null if not found.
    */
   public function extractHiddenField(string $name): ?string {
