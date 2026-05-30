@@ -2,6 +2,7 @@
 namespace Starbug\Testing;
 
 use Psr\Http\Message\ResponseInterface;
+use Symfony\Component\DomCrawler\Crawler;
 
 /**
  * Contract for drivers that perform HTTP requests and expose
@@ -50,4 +51,86 @@ interface WebDriverInterface {
    * Extract the hidden CSRF token (oid) from the last response body.
    */
   public function extractHiddenOid(): ?string;
+
+  /**
+   * Find elements matching a CSS selector in the last response body.
+   *
+   * Returns a DomCrawler (empty if no matches).
+   */
+  public function filter(string $selector): Crawler;
+
+  /**
+   * Find the first element matching a CSS selector.
+   *
+   * Throws RuntimeException if not found.
+   */
+  public function filterOne(string $selector): Crawler;
+
+  /**
+   * Assert the last response body contains text.
+   */
+  public function assertContains(string $text): void;
+
+  /**
+   * Assert the last response body does not contain text.
+   */
+  public function assertNotContains(string $text): void;
+
+  /**
+   * Assert an element matching the selector exists and contains text.
+   */
+  public function assertElementContains(string $selector, string $text): void;
+
+  /**
+   * Follow a link in the last response body by its visible text.
+   */
+  public function followLink(string $text): void;
+
+  /**
+   * Fill a form field by name.
+   *
+   * Finds the form containing the field, sets the value, and stores
+   * the form state internally for the next pressButton() or submitForm().
+   */
+  public function fillField(string $field, string $value): void;
+
+  /**
+   * Select an option from a dropdown by its visible text.
+   */
+  public function selectOption(string $field, string $option): void;
+
+  /**
+   * Check a checkbox by its name or label.
+   */
+  public function checkField(string $field): void;
+
+  /**
+   * Uncheck a checkbox by its name or label.
+   */
+  public function uncheckField(string $field): void;
+
+  /**
+   * Press a button by its text and submit the form.
+   *
+   * Finds the button, resolves its form, gathers all filled values,
+   * auto-extracts CSRF oid, and submits.
+   */
+  public function pressButton(string $button): void;
+
+  /**
+   * Submit a form via POST after extracting the CSRF token.
+   *
+   * Bulk alternative to fillField + pressButton.
+   */
+  public function submitForm(string $path, array $data): void;
+
+  /**
+   * Download content from a path via GET.
+   */
+  public function download(string $path): string;
+
+  /**
+   * Extract form field errors from the last response body.
+   */
+  public function getFormErrors(): array;
 }

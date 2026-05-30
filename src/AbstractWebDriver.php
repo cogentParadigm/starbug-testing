@@ -2,16 +2,18 @@
 namespace Starbug\Testing;
 
 use RuntimeException;
-use DOMDocument;
-use DOMXPath;
 use Psr\Http\Message\ResponseInterface;
+use Symfony\Component\DomCrawler\Crawler;
 
 /**
  * Base web driver with state tracking and generic HTTP helpers.
  *
  * Concrete drivers must implement request(). All other methods either
  * read stored state or provide reusable actions (followLink, submitForm,
- * etc.) that work across any driver implementation.
+ * fillField, pressButton, etc.) that work across any driver implementation.
+ *
+ * DOM operations use Symfony DomCrawler for CSS selector support and
+ * form interaction.
  */
 abstract class AbstractWebDriver implements WebDriverInterface {
 
@@ -19,50 +21,193 @@ abstract class AbstractWebDriver implements WebDriverInterface {
    * The last response captured.
    */
   protected ?ResponseInterface $lastResponse = null;
+
   /**
    * The response body of the last request.
    */
   protected string $lastBody = '';
+
   /**
    * The current request path.
    */
   protected string $currentPath = '/';
 
   /**
-   * Follow a link in the last response body by its visible text.
-   *
-   * Parses the HTML, finds the first anchor whose textContent matches
-   * $text exactly after trimming, and navigates to its href.
+   * Cached DomCrawler for the last response body.
    */
-  public function followLink(string $text): void {
-    if (empty($this->lastBody)) {
-      throw new RuntimeException('No response body available to follow link.');
+  protected ?Crawler $crawler = null;
+
+  /**
+   * Accumulated form field values for the current page.
+   *
+   * Keyed by field name. Cleared after pressButton or submitForm.
+   */
+  protected array $formValues = [];
+
+  /**
+   * Get a DomCrawler for the last response body.
+   */
+  protected function getCrawler(): Crawler {
+    if ($this->crawler === null) {
+      $this->crawler = new Crawler($this->lastBody, $this->getBaseUri());
     }
-
-    $dom = new DOMDocument();
-    @$dom->loadHTML($this->lastBody);
-    $xpath = new DOMXPath($dom);
-
-    $links = $xpath->query('//a');
-    foreach ($links as $link) {
-      if (trim($link->textContent) === $text) {
-        $href = $link->getAttribute('href');
-        if (!empty($href)) {
-          $this->request('GET', $href);
-          return;
-        }
-      }
-    }
-
-    throw new RuntimeException("Link with text '{$text}' not found.");
+    return $this->crawler;
   }
 
   /**
-   * Submit a form via POST after extracting the CSRF token.
+   * Get the base URI for link/form resolution.
    *
-   * 1. GET the form page to fetch a fresh CSRF token.
-   * 2. Extract the hidden oid input.
-   * 3. POST to the same path with $data + oid.
+   * Defaults to the current path with https://localhost scheme.
+   */
+  protected function getBaseUri(): string {
+    return 'https://localhost' . $this->currentPath;
+  }
+
+  /**
+   * Invalidate the cached crawler and form values after a request.
+   */
+  protected function invalidateDomState(): void {
+    $this->crawler = null;
+    $this->formValues = [];
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function filter(string $selector): Crawler {
+    return $this->getCrawler()->filter($selector);
+  }
+
+  /**
+   * {@inheritdoc}
+   *
+   * @throws RuntimeException if no element matches the selector.
+   */
+  public function filterOne(string $selector): Crawler {
+    $crawler = $this->filter($selector);
+    if ($crawler->count() === 0) {
+      throw new RuntimeException("No element matching selector '{$selector}' found.");
+    }
+    return $crawler->first();
+  }
+
+  /**
+   * {@inheritdoc}
+   *
+   * @throws RuntimeException if the text is not found.
+   */
+  public function assertContains(string $text): void {
+    $body = $this->getCrawler()->text('');
+    if (strpos($body, $text) === false) {
+      throw new RuntimeException("Page does not contain '{$text}'.");
+    }
+  }
+
+  /**
+   * {@inheritdoc}
+   *
+   * @throws RuntimeException if the text is found.
+   */
+  public function assertNotContains(string $text): void {
+    $body = $this->getCrawler()->text('');
+    if (strpos($body, $text) !== false) {
+      throw new RuntimeException("Page contains '{$text}' but should not.");
+    }
+  }
+
+  /**
+   * {@inheritdoc}
+   *
+   * @throws RuntimeException if the element or text is not found.
+   */
+  public function assertElementContains(string $selector, string $text): void {
+    $element = $this->filterOne($selector);
+    $elementText = $element->text('');
+    if (strpos($elementText, $text) === false) {
+      throw new RuntimeException("Element '{$selector}' does not contain '{$text}'.");
+    }
+  }
+
+  /**
+   * {@inheritdoc}
+   *
+   * @throws RuntimeException if the link is not found.
+   */
+  public function followLink(string $text): void {
+    $link = $this->getCrawler()->selectLink($text);
+    if ($link->count() === 0) {
+      throw new RuntimeException("Link with text '{$text}' not found.");
+    }
+    $uri = $link->first()->link()->getUri();
+    // Extract path from absolute localhost URI.
+    if (str_starts_with($uri, 'https://localhost') || str_starts_with($uri, 'http://localhost')) {
+      $uri = parse_url($uri, PHP_URL_PATH) ?: '/';
+    }
+    $this->request('GET', $uri);
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function fillField(string $field, string $value): void {
+    $this->formValues[$field] = $value;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function selectOption(string $field, string $option): void {
+    $this->formValues[$field] = $option;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function checkField(string $field): void {
+    $this->formValues[$field] = '1';
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function uncheckField(string $field): void {
+    $this->formValues[$field] = '';
+  }
+
+  /**
+   * {@inheritdoc}
+   *
+   * @throws RuntimeException if the button is not found.
+   */
+  public function pressButton(string $button): void {
+    $btn = $this->getCrawler()->selectButton($button);
+    if ($btn->count() === 0) {
+      throw new RuntimeException("Button '{$button}' not found.");
+    }
+
+    $form = $btn->first()->form();
+    $data = $this->formValues + $form->getPhpValues();
+
+    // Auto-extract CSRF oid if present.
+    $oid = $this->extractHiddenOid();
+    if ($oid !== null && !isset($data['oid'])) {
+      $data['oid'] = $oid;
+    }
+
+    $uri = $form->getUri();
+    $method = strtoupper($form->getMethod());
+
+    // Extract path from absolute localhost URI.
+    if (str_starts_with($uri, 'https://localhost') || str_starts_with($uri, 'http://localhost')) {
+      $uri = parse_url($uri, PHP_URL_PATH) ?: '/';
+    }
+
+    $this->formValues = [];
+    $this->request($method, $uri, $data);
+  }
+
+  /**
+   * {@inheritdoc}
    */
   public function submitForm(string $path, array $data): void {
     $this->request('GET', $path);
@@ -74,7 +219,7 @@ abstract class AbstractWebDriver implements WebDriverInterface {
   }
 
   /**
-   * Download content from a path via GET.
+   * {@inheritdoc}
    */
   public function download(string $path): string {
     $this->request('GET', $path);
@@ -82,37 +227,25 @@ abstract class AbstractWebDriver implements WebDriverInterface {
   }
 
   /**
-   * Extract form field errors from the last response body.
-   *
-   * Looks for inputs with a name attribute and searches their ancestor
-   * tree for elements with class "alert alert-danger". Returns a map
-   * of field name to error message.
-   *
-   * This heuristic covers Starbug's default form rendering. It may need
-   * refinement for custom themes or non-standard markup.
+   * {@inheritdoc}
    */
   public function getFormErrors(): array {
     $errors = [];
-    if (empty($this->lastBody)) {
-      return $errors;
-    }
+    $crawler = $this->getCrawler();
+    $inputs = $crawler->filter('input[name], select[name], textarea[name]');
 
-    $dom = new DOMDocument();
-    @$dom->loadHTML($this->lastBody);
-    $xpath = new DOMXPath($dom);
-
-    $inputs = $xpath->query('//input[@name] | //select[@name] | //textarea[@name]');
     foreach ($inputs as $input) {
       $name = $input->getAttribute('name');
+      $node = new Crawler($input, $this->getBaseUri());
+
+      // Walk up ancestors looking for alert-danger.
       $parent = $input->parentNode;
       while ($parent && $parent->nodeName !== 'body') {
-        $alerts = $xpath->query(
-          './/*[contains(@class, "alert") and contains(@class, "alert-danger")]',
-          $parent
-        );
-        if ($alerts->length > 0) {
-          $message = trim($alerts->item(0)->textContent);
-          if (!empty($message)) {
+        $parentCrawler = new Crawler($parent, $this->getBaseUri());
+        $alerts = $parentCrawler->filter('.alert.alert-danger');
+        if ($alerts->count() > 0) {
+          $message = trim($alerts->first()->text(''));
+          if ($message !== '') {
             $errors[$name] = $message;
           }
           break;
@@ -124,6 +257,11 @@ abstract class AbstractWebDriver implements WebDriverInterface {
     return $errors;
   }
 
+  /**
+   * {@inheritdoc}
+   *
+   * @throws RuntimeException if no request has been made yet.
+   */
   public function getStatusCode(): int {
     if (!$this->lastResponse) {
       throw new RuntimeException('No request has been made yet.');
@@ -131,36 +269,43 @@ abstract class AbstractWebDriver implements WebDriverInterface {
     return $this->lastResponse->getStatusCode();
   }
 
+  /**
+   * {@inheritdoc}
+   */
   public function getResponseBody(): string {
     return $this->lastBody;
   }
 
+  /**
+   * {@inheritdoc}
+   */
   public function getCurrentPath(): string {
     return $this->currentPath;
   }
 
+  /**
+   * {@inheritdoc}
+   */
   public function get(string $path, array $headers = []): ResponseInterface {
     return $this->request('GET', $path, [], $headers);
   }
 
+  /**
+   * {@inheritdoc}
+   */
   public function post(string $path, array $data = [], array $headers = []): ResponseInterface {
     return $this->request('POST', $path, $data, $headers);
   }
 
+  /**
+   * {@inheritdoc}
+   */
   public function extractHiddenOid(): ?string {
-    if (empty($this->lastBody)) {
-      return null;
+    $crawler = $this->getCrawler();
+    $inputs = $crawler->filter('input[name="oid"]');
+    if ($inputs->count() > 0) {
+      return $inputs->first()->attr('value');
     }
-
-    $dom = new DOMDocument();
-    @$dom->loadHTML($this->lastBody);
-    $xpath = new DOMXPath($dom);
-
-    $inputs = $xpath->query('//input[@name="oid"]');
-    if ($inputs->length > 0) {
-      return $inputs->item(0)->getAttribute('value');
-    }
-
     return null;
   }
 }

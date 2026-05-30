@@ -34,6 +34,8 @@ class DirectDriver extends AbstractWebDriver {
   protected Bundle $jar;
 
   /**
+   * Create a new DirectDriver.
+   *
    * @param RequestHandlerInterface $handler The application request handler.
    * @param Bundle $jar Shared cookie jar.
    * @param int $maxRedirects Maximum redirect follows (default 5).
@@ -68,6 +70,7 @@ class DirectDriver extends AbstractWebDriver {
 
     $this->lastResponse = $response;
     $this->lastBody = (string) $response->getBody();
+    $this->invalidateDomState();
 
     return $response;
   }
