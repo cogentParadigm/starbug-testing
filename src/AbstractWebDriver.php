@@ -14,6 +14,13 @@ use Symfony\Component\DomCrawler\Crawler;
  *
  * DOM operations use Symfony DomCrawler for CSS selector support and
  * form interaction.
+ *
+ * Configuration:
+ * - $baseUrl    Scheme + host (e.g. "https://localhost")
+ * - $basePath   App mount point (e.g. "/myapp/"). Paths passed to the
+ *               driver are app-relative; basePath is prepended internally.
+ * - $csrfFieldName  If set, pressButton() and submitForm() auto-extract
+ *                   and inject this hidden form field.
  */
 abstract class AbstractWebDriver implements WebDriverInterface {
 
@@ -28,7 +35,7 @@ abstract class AbstractWebDriver implements WebDriverInterface {
   protected string $lastBody = '';
 
   /**
-   * The current request path.
+   * The current request path (app-relative, without basePath).
    */
   protected string $currentPath = '/';
 
@@ -45,6 +52,70 @@ abstract class AbstractWebDriver implements WebDriverInterface {
   protected array $formValues = [];
 
   /**
+   * Base URL (scheme + host, no trailing slash).
+   */
+  protected string $baseUrl = 'https://localhost';
+
+  /**
+   * Base path (e.g. "/myapp/"). Always starts and ends with "/".
+   * Defaults to "/" for apps mounted at the domain root.
+   */
+  protected string $basePath = '/';
+
+  /**
+   * CSRF hidden input name. When set, pressButton() and submitForm()
+   * will auto-extract and include this field.
+   */
+  protected ?string $csrfFieldName = null;
+
+  /**
+   * Create a new AbstractWebDriver.
+   *
+   * @param string $baseUrl Scheme + host (default "https://localhost").
+   * @param string $basePath App mount point (default "/").
+   * @param string|null $csrfFieldName Hidden input name for CSRF auto-injection (default null).
+   */
+  public function __construct(
+    string $baseUrl = 'https://localhost',
+    string $basePath = '/',
+    ?string $csrfFieldName = null
+  ) {
+    $this->baseUrl = rtrim($baseUrl, '/');
+    $this->basePath = $this->normalizeBasePath($basePath);
+    $this->csrfFieldName = $csrfFieldName;
+  }
+
+  /**
+   * Normalize a base path so it always starts and ends with "/".
+   */
+  protected function normalizeBasePath(string $path): string {
+    $path = trim($path, '/');
+    return $path === '' ? '/' : '/' . $path . '/';
+  }
+
+  /**
+   * Strip basePath from a server path to produce an app-relative path.
+   */
+  protected function normalizePath(string $path): string {
+    $path = '/' . ltrim($path, '/');
+    if ($this->basePath !== '/' && str_starts_with($path, $this->basePath)) {
+      $path = '/' . ltrim(substr($path, strlen($this->basePath)), '/');
+    }
+    return $path;
+  }
+
+  /**
+   * Build a server-absolute path from an app-relative path.
+   */
+  protected function buildAbsolutePath(string $path): string {
+    $path = '/' . ltrim($path, '/');
+    if ($this->basePath === '/') {
+      return $path;
+    }
+    return $this->basePath . ltrim($path, '/');
+  }
+
+  /**
    * Get a DomCrawler for the last response body.
    */
   protected function getCrawler(): Crawler {
@@ -57,10 +128,13 @@ abstract class AbstractWebDriver implements WebDriverInterface {
   /**
    * Get the base URI for link/form resolution.
    *
-   * Defaults to the current path with https://localhost scheme.
+   * Combines baseUrl + basePath + currentPath.
    */
   protected function getBaseUri(): string {
-    return 'https://localhost' . $this->currentPath;
+    if ($this->basePath === '/') {
+      return $this->baseUrl . $this->currentPath;
+    }
+    return $this->baseUrl . $this->basePath . ltrim($this->currentPath, '/');
   }
 
   /**
@@ -139,9 +213,13 @@ abstract class AbstractWebDriver implements WebDriverInterface {
       throw new RuntimeException("Link with text '{$text}' not found.");
     }
     $uri = $link->first()->link()->getUri();
-    // Extract path from absolute localhost URI.
-    if (str_starts_with($uri, 'https://localhost') || str_starts_with($uri, 'http://localhost')) {
+    // Strip base URL to get server path.
+    if (str_starts_with($uri, $this->baseUrl)) {
       $uri = parse_url($uri, PHP_URL_PATH) ?: '/';
+    }
+    // Strip basePath so request receives app-relative path.
+    if ($this->basePath !== '/' && str_starts_with($uri, $this->basePath)) {
+      $uri = '/' . ltrim(substr($uri, strlen($this->basePath)), '/');
     }
     $this->request('GET', $uri);
   }
@@ -188,18 +266,23 @@ abstract class AbstractWebDriver implements WebDriverInterface {
     $form = $btn->first()->form();
     $data = $this->formValues + $form->getPhpValues();
 
-    // Auto-extract CSRF oid if present.
-    $oid = $this->extractHiddenOid();
-    if ($oid !== null && !isset($data['oid'])) {
-      $data['oid'] = $oid;
+    // Auto-extract CSRF token if configured.
+    if ($this->csrfFieldName !== null) {
+      $token = $this->extractHiddenField($this->csrfFieldName);
+      if ($token !== null && !isset($data[$this->csrfFieldName])) {
+        $data[$this->csrfFieldName] = $token;
+      }
     }
 
     $uri = $form->getUri();
     $method = strtoupper($form->getMethod());
 
-    // Extract path from absolute localhost URI.
-    if (str_starts_with($uri, 'https://localhost') || str_starts_with($uri, 'http://localhost')) {
+    // Extract app-relative path from absolute URI.
+    if (str_starts_with($uri, $this->baseUrl)) {
       $uri = parse_url($uri, PHP_URL_PATH) ?: '/';
+    }
+    if ($this->basePath !== '/' && str_starts_with($uri, $this->basePath)) {
+      $uri = '/' . ltrim(substr($uri, strlen($this->basePath)), '/');
     }
 
     $this->formValues = [];
@@ -211,9 +294,11 @@ abstract class AbstractWebDriver implements WebDriverInterface {
    */
   public function submitForm(string $path, array $data): void {
     $this->request('GET', $path);
-    $oid = $this->extractHiddenOid();
-    if ($oid !== null) {
-      $data['oid'] = $oid;
+    if ($this->csrfFieldName !== null) {
+      $token = $this->extractHiddenField($this->csrfFieldName);
+      if ($token !== null) {
+        $data[$this->csrfFieldName] = $token;
+      }
     }
     $this->request('POST', $path, $data);
   }
@@ -298,11 +383,14 @@ abstract class AbstractWebDriver implements WebDriverInterface {
   }
 
   /**
-   * {@inheritdoc}
+   * Extract the value of a hidden input by its name attribute.
+   *
+   * @param string $name The input name to search for.
+   * @return string|null The input value, or null if not found.
    */
-  public function extractHiddenOid(): ?string {
+  public function extractHiddenField(string $name): ?string {
     $crawler = $this->getCrawler();
-    $inputs = $crawler->filter('input[name="oid"]');
+    $inputs = $crawler->filter('input[name="' . $name . '"]');
     if ($inputs->count() > 0) {
       return $inputs->first()->attr('value');
     }

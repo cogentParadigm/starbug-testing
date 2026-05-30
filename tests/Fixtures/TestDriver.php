@@ -27,4 +27,8 @@ class TestDriver extends AbstractWebDriver {
     $this->lastBody = $body;
     $this->invalidateDomState();
   }
+
+  public function setCsrfFieldName(?string $name): void {
+    $this->csrfFieldName = $name;
+  }
 }

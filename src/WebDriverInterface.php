@@ -48,11 +48,6 @@ interface WebDriverInterface {
   public function getCookie(string $name): ?string;
 
   /**
-   * Extract the hidden CSRF token (oid) from the last response body.
-   */
-  public function extractHiddenOid(): ?string;
-
-  /**
    * Find elements matching a CSS selector in the last response body.
    *
    * Returns a DomCrawler (empty if no matches).
@@ -113,7 +108,7 @@ interface WebDriverInterface {
    * Press a button by its text and submit the form.
    *
    * Finds the button, resolves its form, gathers all filled values,
-   * auto-extracts CSRF oid, and submits.
+   * auto-extracts CSRF if a csrfFieldName is configured, and submits.
    */
   public function pressButton(string $button): void;
 

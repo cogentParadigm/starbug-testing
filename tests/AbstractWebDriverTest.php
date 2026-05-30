@@ -100,16 +100,16 @@ class AbstractWebDriverTest extends TestCase {
     $this->driver->followLink('Go');
   }
 
-  // --- CSRF Tests ---
+  // --- Hidden Field Tests ---
 
-  public function testExtractHiddenOidReturnsValue(): void {
+  public function testExtractHiddenFieldReturnsValue(): void {
     $this->driver->setTestBody('<form><input type="hidden" name="oid" value="abc123"/></form>');
-    $this->assertSame('abc123', $this->driver->extractHiddenOid());
+    $this->assertSame('abc123', $this->driver->extractHiddenField('oid'));
   }
 
-  public function testExtractHiddenOidReturnsNullWhenMissing(): void {
+  public function testExtractHiddenFieldReturnsNullWhenMissing(): void {
     $this->driver->setTestBody('<form><input type="text" name="foo"/></form>');
-    $this->assertNull($this->driver->extractHiddenOid());
+    $this->assertNull($this->driver->extractHiddenField('oid'));
   }
 
   // --- Form Error Tests ---
@@ -140,7 +140,8 @@ class AbstractWebDriverTest extends TestCase {
     $this->assertSame('hello', $this->driver->capturedRequests[0]['data']['foo']);
   }
 
-  public function testPressButtonAutoExtractsOid(): void {
+  public function testPressButtonAutoExtractsCsrf(): void {
+    $this->driver->setCsrfFieldName('oid');
     $this->driver->setTestBody('<form action="/submit" method="post"><input type="hidden" name="oid" value="xyz789"/><input name="bar"/><button type="submit">Submit</button></form>');
     $this->driver->fillField('bar', 'world');
     $this->driver->pressButton('Submit');
@@ -176,6 +177,7 @@ class AbstractWebDriverTest extends TestCase {
   }
 
   public function testSubmitFormBulkApi(): void {
+    $this->driver->setCsrfFieldName('oid');
     $this->driver->setTestBody('<form action="/create" method="post"><input type="hidden" name="oid" value="abc"/><input name="name"/></form>');
     $this->driver->submitForm('/create', ['name' => 'test']);
     $this->assertCount(2, $this->driver->capturedRequests);
@@ -207,5 +209,23 @@ class AbstractWebDriverTest extends TestCase {
 
     $this->driver->setTestBody('<html><body><div class="foo">B</div></body></html>');
     $this->assertSame('B', $this->driver->filter('.foo')->first()->text());
+  }
+
+  // --- Base Path Tests ---
+
+  public function testBasePathStrippedFromRequestPath(): void {
+    $driver = new TestDriver(basePath: '/myapp/');
+    $driver->setTestBody('<html><body><a href="/myapp/dashboard">Dash</a></body></html>');
+    $driver->followLink('Dash');
+    $this->assertSame('/dashboard', $driver->capturedRequests[0]['path']);
+  }
+
+  public function testBasePathPrependedToRelativeLink(): void {
+    $driver = new TestDriver(basePath: '/myapp/');
+    // currentPath defaults to '/', so base URI is https://localhost/myapp/
+    // A relative link "dashboard" resolves to https://localhost/myapp/dashboard
+    $driver->setTestBody('<html><body><a href="dashboard">Dash</a></body></html>');
+    $driver->followLink('Dash');
+    $this->assertSame('/dashboard', $driver->capturedRequests[0]['path']);
   }
 }

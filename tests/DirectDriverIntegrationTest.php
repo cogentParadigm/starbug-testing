@@ -91,4 +91,56 @@ class DirectDriverIntegrationTest extends TestCase {
     $this->assertCount(2, $this->handler->requests);
     $this->assertSame('/target', $this->driver->getCurrentPath());
   }
+
+  public function testAllCookiesFromJarAreSent(): void {
+    $this->jar['session_id'] = 'abc123';
+    $this->jar['tracking'] = 'xyz';
+    $this->driver->get('/');
+
+    $request = $this->handler->requests[0];
+    $cookies = $request->getCookieParams();
+    $this->assertSame('abc123', $cookies['session_id']);
+    $this->assertSame('xyz', $cookies['tracking']);
+  }
+
+  public function testBasePathPrependedToRequests(): void {
+    $driver = new DirectDriver($this->handler, $this->jar, basePath: '/myapp/');
+    $driver->get('/admin');
+
+    $request = $this->handler->requests[0];
+    $this->assertSame('/myapp/admin', $request->getUri()->getPath());
+    $this->assertSame('/admin', $driver->getCurrentPath());
+  }
+
+  public function testRedirectStripsBasePath(): void {
+    $responses = [
+      new Response(302, ['Location' => 'https://localhost/myapp/target']),
+      new Response(200, [], 'Target'),
+    ];
+    $handler = new class($responses) implements RequestHandlerInterface {
+      private array $responses;
+      private int $index = 0;
+      public array $requests = [];
+      public function __construct(array $responses) {
+        $this->responses = $responses;
+      }
+      public function handle(\Psr\Http\Message\ServerRequestInterface $request): \Psr\Http\Message\ResponseInterface {
+        $this->requests[] = $request;
+        return $this->responses[$this->index++];
+      }
+    };
+    $driver = new DirectDriver($handler, $this->jar, basePath: '/myapp/');
+    $driver->get('/source');
+
+    $this->assertCount(2, $handler->requests);
+    $this->assertSame('/target', $driver->getCurrentPath());
+  }
+
+  public function testCustomBaseUrlUsedInRequests(): void {
+    $driver = new DirectDriver($this->handler, $this->jar, baseUrl: 'https://app.local.com');
+    $driver->get('/login');
+
+    $request = $this->handler->requests[0];
+    $this->assertSame('https://app.local.com/login', (string) $request->getUri());
+  }
 }

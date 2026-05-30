@@ -1,20 +1,26 @@
 <?php
 namespace Starbug\Testing;
 
+use Traversable;
+use ArrayAccess;
 use GuzzleHttp\Psr7\Utils;
 use Psr\Http\Message\UriInterface;
 use GuzzleHttp\Psr7\Uri;
 use GuzzleHttp\Psr7\ServerRequest;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Server\RequestHandlerInterface;
-use Starbug\Bundle\Bundle;
 
 /**
  * DirectDriver dispatches HTTP requests through the application middleware
  * stack in-process, without using an actual HTTP client or web server.
  *
- * It maintains cookie state via a shared Bundle jar and auto-follows
+ * It maintains cookie state via a shared jar and auto-follows
  * redirects up to a configured maximum depth.
+ *
+ * Configuration:
+ * - $baseUrl    Scheme + host (e.g. "https://app.local.com")
+ * - $basePath   App mount point (e.g. "/myapp/"). Paths passed to the
+ *               driver are app-relative; basePath is prepended internally.
  */
 class DirectDriver extends AbstractWebDriver {
 
@@ -29,22 +35,29 @@ class DirectDriver extends AbstractWebDriver {
   protected RequestHandlerInterface $handler;
 
   /**
-   * Shared cookie jar backed by a Bundle.
+   * Shared cookie jar. Must be iterable (array or Traversable).
    */
-  protected Bundle $jar;
+  protected Traversable|array $jar;
 
   /**
    * Create a new DirectDriver.
    *
    * @param RequestHandlerInterface $handler The application request handler.
-   * @param Bundle $jar Shared cookie jar.
+   * @param Traversable|array $jar Shared cookie jar.
+   * @param string $baseUrl Scheme + host (default "https://localhost").
+   * @param string $basePath App mount point (default "/").
    * @param int $maxRedirects Maximum redirect follows (default 5).
+   * @param string|null $csrfFieldName Hidden input name for CSRF auto-injection.
    */
   public function __construct(
     RequestHandlerInterface $handler,
-    Bundle $jar,
-    int $maxRedirects = 5
+    Traversable|array $jar,
+    string $baseUrl = 'https://localhost',
+    string $basePath = '/',
+    int $maxRedirects = 5,
+    ?string $csrfFieldName = null
   ) {
+    parent::__construct($baseUrl, $basePath, $csrfFieldName);
     $this->handler = $handler;
     $this->jar = $jar;
     $this->maxRedirects = $maxRedirects;
@@ -87,13 +100,10 @@ class DirectDriver extends AbstractWebDriver {
     $uri = $this->buildUri($path);
     $request = new ServerRequest($method, $uri, $headers);
 
-    // Seed cookies from the shared jar.
+    // Seed all cookies from the shared jar.
     $cookies = [];
-    if ($sid = $this->jar->get('sid')) {
-      $cookies['sid'] = $sid;
-    }
-    if ($oid = $this->jar->get('oid')) {
-      $cookies['oid'] = $oid;
+    foreach ($this->jar as $name => $value) {
+      $cookies[$name] = $value;
     }
     $request = $request->withCookieParams($cookies);
 
@@ -118,21 +128,19 @@ class DirectDriver extends AbstractWebDriver {
       $response = $this->handler->handle($request);
     }
 
-    // Update current path from request.
-    $this->currentPath = $uri->getPath();
+    // Track current path as app-relative.
+    $this->currentPath = $this->normalizePath($uri->getPath());
 
     return $response;
   }
 
   /**
-   * Build a URI from a path string.
+   * Build a URI from an app-relative path.
    */
   protected function buildUri(string $path): UriInterface {
-    // Ensure path starts with "/".
-    if (!str_starts_with($path, '/')) {
-      $path = '/' . $path;
-    }
-    return new Uri('https://localhost' . $path);
+    $path = '/' . ltrim($path, '/');
+    $fullPath = $this->buildAbsolutePath($path);
+    return new Uri($this->baseUrl . $fullPath);
   }
 
   /**
@@ -145,20 +153,34 @@ class DirectDriver extends AbstractWebDriver {
 
   /**
    * Extract the Location header from a response.
+   *
+   * Strips baseUrl and basePath to produce an app-relative path.
    */
   protected function getLocation(ResponseInterface $response): ?string {
     $location = $response->getHeaderLine('Location');
     if (empty($location)) {
       return null;
     }
-    // If the location is an absolute URL on the same host, extract just the path.
-    if (str_starts_with($location, 'https://localhost') || str_starts_with($location, 'http://localhost')) {
+    // If absolute URL matching our base, extract path.
+    if (str_starts_with($location, $this->baseUrl)) {
       $location = parse_url($location, PHP_URL_PATH) ?: '/';
+    }
+    // Strip basePath to keep currentPath app-relative.
+    if ($this->basePath !== '/' && str_starts_with($location, $this->basePath)) {
+      $location = '/' . ltrim(substr($location, strlen($this->basePath)), '/');
     }
     return $location;
   }
 
   public function getCookie(string $name): ?string {
-    return $this->jar->get($name);
+    if (is_array($this->jar) || $this->jar instanceof ArrayAccess) {
+      return $this->jar[$name] ?? null;
+    }
+    foreach ($this->jar as $key => $value) {
+      if ($key === $name) {
+        return $value;
+      }
+    }
+    return null;
   }
 }
