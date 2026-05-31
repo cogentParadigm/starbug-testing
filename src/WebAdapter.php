@@ -7,9 +7,9 @@ use Psr\Http\Message\ResponseInterface;
  * Base adapter for domain-specific web protocol adapters.
  *
  * Adapters extend this class to provide domain actions (e.g. navigateToUsersList)
- * while delegating HTTP operations to an AbstractWebDriver implementation.
+ * while delegating HTTP operations to a WebDriverInterface implementation.
  */
-abstract class WebAdapter {
+abstract class WebAdapter implements WebAdapterInterface {
 
   public function __construct(protected WebDriverInterface $driver) {
   }

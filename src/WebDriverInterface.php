@@ -62,21 +62,6 @@ interface WebDriverInterface {
   public function filterOne(string $selector): Crawler;
 
   /**
-   * Assert the last response body contains text.
-   */
-  public function assertContains(string $text): void;
-
-  /**
-   * Assert the last response body does not contain text.
-   */
-  public function assertNotContains(string $text): void;
-
-  /**
-   * Assert an element matching the selector exists and contains text.
-   */
-  public function assertElementContains(string $selector, string $text): void;
-
-  /**
    * Follow a link in the last response body by its visible text.
    */
   public function followLink(string $text): void;

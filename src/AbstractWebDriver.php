@@ -157,43 +157,6 @@ abstract class AbstractWebDriver implements WebDriverInterface {
   /**
    * {@inheritdoc}
    *
-   * @throws RuntimeException if the text is not found.
-   */
-  public function assertContains(string $text): void {
-    $body = $this->getCrawler()->text('');
-    if (strpos($body, $text) === false) {
-      throw new RuntimeException("Page does not contain '{$text}'.");
-    }
-  }
-
-  /**
-   * {@inheritdoc}
-   *
-   * @throws RuntimeException if the text is found.
-   */
-  public function assertNotContains(string $text): void {
-    $body = $this->getCrawler()->text('');
-    if (strpos($body, $text) !== false) {
-      throw new RuntimeException("Page contains '{$text}' but should not.");
-    }
-  }
-
-  /**
-   * {@inheritdoc}
-   *
-   * @throws RuntimeException if the element or text is not found.
-   */
-  public function assertElementContains(string $selector, string $text): void {
-    $element = $this->filterOne($selector);
-    $elementText = $element->text('');
-    if (strpos($elementText, $text) === false) {
-      throw new RuntimeException("Element '{$selector}' does not contain '{$text}'.");
-    }
-  }
-
-  /**
-   * {@inheritdoc}
-   *
    * @throws RuntimeException if the link is not found.
    */
   public function followLink(string $text): void {
