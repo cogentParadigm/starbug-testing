@@ -2,6 +2,12 @@
   "name": "starbug/testing",
   "description": "Starbug testing package.",
   "type": "library",
+  "extra": {
+    "starbug": {
+      "type": "module",
+      "namespace": "Starbug\\Testing"
+    }
+  },
   "license": "GPL-3.0-or-later",
   "authors": [
     {
