@@ -2,6 +2,7 @@
 namespace Starbug\Testing;
 
 use PHPUnit\Framework\TestCase;
+use Starbug\Db\DatabaseInterface;
 use Starbug\Db\Operation\Migrate;
 use Starbug\Imports\Import;
 use Starbug\Imports\Importer;
@@ -12,9 +13,13 @@ abstract class DatabaseTestCase extends TestCase {
 
   protected $importer;
   protected $operation;
+  protected DatabaseInterface $db;
 
   protected function setUp(): void {
     parent::setUp();
+    global $container;
+    $container->injectOn($this);
+    $this->getDatabase()->errors->set([]);
     if ($imports = $this->getDataSets()) {
       foreach ($imports as $import) {
         $this->getImporter()->run($import);
@@ -47,5 +52,13 @@ abstract class DatabaseTestCase extends TestCase {
       $this->operation = $container->get(Migrate::class);
     }
     return $this->operation;
+  }
+
+  protected function getDatabase() {
+    if (empty($this->db)) {
+      global $container;
+      $this->db = $container->get(DatabaseInterface::class);
+    }
+    return $this->db;
   }
 }
