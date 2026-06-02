@@ -10,6 +10,7 @@ namespace Starbug\Testing;
  * different transport (e.g. BrowserDriver for JavaScript tests).
  */
 abstract class WebTestCase extends DatabaseTestCase {
+  use WebAssertions;
 
   /**
    * The web driver for this test.
