@@ -181,4 +181,18 @@ class DirectDriver extends AbstractWebDriver {
     }
     return null;
   }
+
+  /**
+   * {@inheritdoc}
+   *
+   * Also clears the shared cookie jar.
+   */
+  public function reset(): void {
+    parent::reset();
+    if (is_array($this->jar)) {
+      $this->jar = [];
+    } else {
+      $this->jar->set([]);
+    }
+  }
 }

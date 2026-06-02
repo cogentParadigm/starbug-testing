@@ -116,4 +116,9 @@ interface WebDriverInterface {
    * Extract form field errors from the last response body.
    */
   public function getFormErrors(): array;
+
+  /**
+   * Reset the driver state, clearing any form state or cookies.
+   */
+  public function reset(): void;
 }

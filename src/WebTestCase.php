@@ -1,8 +1,6 @@
 <?php
 namespace Starbug\Testing;
 
-use Psr\Container\ContainerInterface;
-
 /**
  * Base class for web acceptance tests.
  *
@@ -20,7 +18,7 @@ abstract class WebTestCase extends DatabaseTestCase {
 
   protected function setUp(): void {
     parent::setUp();
-    $this->driver = $this->createDriver();
+    $this->getDriver()->reset();
   }
 
   /**
@@ -29,12 +27,11 @@ abstract class WebTestCase extends DatabaseTestCase {
    * Defaults to DirectDriver using the container's request handler
    * and shared test cookie jar. Override to use a different driver.
    */
-  protected function createDriver(): WebDriverInterface {
-    static $driver;
-    if (empty($driver)) {
+  protected function getDriver(): WebDriverInterface {
+    if (empty($this->driver)) {
       global $container;
-      $driver = $container->get(WebDriverInterface::class);
+      $this->driver = $container->get(WebDriverInterface::class);
     }
-    return $driver;
+    return $this->driver;
   }
 }

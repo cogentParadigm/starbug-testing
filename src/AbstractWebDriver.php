@@ -365,4 +365,17 @@ abstract class AbstractWebDriver implements WebDriverInterface {
     }
     return null;
   }
+
+  /**
+   * Reset all tracked response and DOM state.
+   *
+   * Subclasses should override to also clear transport-specific
+   * state (e.g. cookies, shared jars).
+   */
+  public function reset(): void {
+    $this->lastResponse = null;
+    $this->lastBody = '';
+    $this->currentPath = '/';
+    $this->invalidateDomState();
+  }
 }
