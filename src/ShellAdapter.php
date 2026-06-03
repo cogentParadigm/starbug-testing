@@ -1,6 +1,8 @@
 <?php
 namespace Starbug\Testing;
 
+use RuntimeException;
+
 /**
  * Base adapter for domain-specific shell protocol adapters.
  *
@@ -31,7 +33,7 @@ abstract class ShellAdapter implements ShellAdapterInterface {
    * @param string|null $cwd Working directory for the process
    *
    * @return string The stdout output
-   * @throws \RuntimeException on non-zero exit code
+   * @throws RuntimeException on non-zero exit code
    */
   public function runOrFail(array $argv, ?string $cwd = null): string {
     return $this->driver->runOrFail($argv, $cwd);

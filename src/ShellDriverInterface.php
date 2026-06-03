@@ -1,6 +1,8 @@
 <?php
 namespace Starbug\Testing;
 
+use RuntimeException;
+
 /**
  * Contract for drivers that execute shell commands safely.
  *
@@ -17,7 +19,7 @@ interface ShellDriverInterface {
    * @param string|null $cwd Working directory for the process
    *
    * @return array ['stdout' => string, 'stderr' => string, 'exit' => int]
-   * @throws \RuntimeException if the process cannot be started
+   * @throws RuntimeException if the process cannot be started
    */
   public function run(array $argv, ?string $cwd = null): array;
 
@@ -28,7 +30,7 @@ interface ShellDriverInterface {
    * @param string|null $cwd Working directory for the process
    *
    * @return string The stdout output
-   * @throws \RuntimeException on non-zero exit code
+   * @throws RuntimeException on non-zero exit code
    */
   public function runOrFail(array $argv, ?string $cwd = null): string;
 
