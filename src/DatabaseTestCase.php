@@ -1,6 +1,7 @@
 <?php
 namespace Starbug\Testing;
 
+use ReflectionClass;
 use PHPUnit\Framework\TestCase;
 use Starbug\Db\DatabaseInterface;
 use Starbug\Db\Operation\Migrate;
@@ -8,6 +9,7 @@ use Starbug\Imports\Import;
 use Starbug\Imports\Importer;
 use Starbug\Imports\Read\YamlFixtureStrategy;
 use Starbug\Imports\Write\FixtureStrategy;
+use Starbug\Testing\Attribute\Fixture;
 
 abstract class DatabaseTestCase extends TestCase {
 
@@ -36,7 +38,20 @@ abstract class DatabaseTestCase extends TestCase {
   }
 
   protected function getDataSets() {
-    return false;
+    $reflection = new ReflectionClass($this);
+    $imports = [];
+    do {
+      $attributes = $reflection->getAttributes(Fixture::class);
+      foreach ($attributes as $attribute) {
+        $fixture = $attribute->newInstance();
+        if ($fixture->type === 'yaml') {
+          $imports[] = $this->createYamlDataSet($fixture->path);
+        }
+      }
+      $reflection = $reflection->getParentClass();
+    } while ($reflection && $reflection->getName() !== TestCase::class);
+
+    return empty($imports) ? false : array_reverse($imports);
   }
 
   protected function createYamlDataSet($ymlFile) {
