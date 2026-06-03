@@ -1,6 +1,15 @@
 {
   "name": "starbug/testing",
-  "description": "Starbug testing package.",
+  "description": "PHPUnit-based web acceptance and database testing utilities for Starbug PHP.",
+  "keywords": [
+    "php",
+    "testing",
+    "phpunit",
+    "acceptance-testing",
+    "starbug",
+    "web-testing",
+    "fixtures"
+  ],
   "type": "library",
   "extra": {
     "starbug": {
