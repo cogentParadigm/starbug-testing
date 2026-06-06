@@ -10,8 +10,11 @@ use Starbug\Imports\Importer;
 use Starbug\Imports\Read\YamlFixtureStrategy;
 use Starbug\Imports\Write\FixtureStrategy;
 use Starbug\Testing\Attribute\Fixture;
+use Starbug\Testing\Traits\ContainerBindings;
 
 abstract class DatabaseTestCase extends TestCase {
+
+  use ContainerBindings;
 
   protected $importer;
   protected $operation;
@@ -20,13 +23,18 @@ abstract class DatabaseTestCase extends TestCase {
   protected function setUp(): void {
     parent::setUp();
     global $container;
-    $container->injectOn($this);
+    $this->applyBinds();
     $this->getDatabase()->errors->set([]);
     if ($imports = $this->getDataSets()) {
       foreach ($imports as $import) {
         $this->getImporter()->run($import);
       }
     }
+  }
+
+  protected function tearDown(): void {
+    $this->restoreBinds();
+    parent::tearDown();
   }
 
   protected function getImporter() {
