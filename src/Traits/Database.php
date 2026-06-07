@@ -23,6 +23,8 @@ trait Database {
   protected $operation;
   protected DatabaseInterface $db;
 
+  use DatabaseAssertions;
+
   /**
    * Clear database errors and load fixture datasets.
    *
