@@ -28,7 +28,7 @@ class TestDriver extends AbstractWebDriver {
 
   public function request(string $method, string $path, array $data = [], array $headers = []): ResponseInterface {
     $this->capturedRequests[] = ['method' => $method, 'path' => $path, 'data' => $data];
-    $this->currentPath = $this->uriBuilder->build($path, false)->getPath();
+    $this->uri = $this->uriBuilder->build($path, true);
     $body = $this->lastBody;
     $response = new Response(200, [], $body);
     $this->lastResponse = $response;
@@ -42,6 +42,9 @@ class TestDriver extends AbstractWebDriver {
 
   public function setTestBody(string $body): void {
     $this->lastBody = $body;
+    if ($this->uri === null) {
+      $this->uri = $this->uriBuilder->getBaseUri();
+    }
     $this->invalidateDomState();
   }
 }

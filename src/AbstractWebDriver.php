@@ -3,6 +3,7 @@ namespace Starbug\Testing;
 
 use RuntimeException;
 use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\UriInterface;
 use Starbug\Http\UriBuilderInterface;
 use Symfony\Component\DomCrawler\Crawler;
 
@@ -33,9 +34,9 @@ abstract class AbstractWebDriver implements WebDriverInterface {
   protected string $lastBody = '';
 
   /**
-   * The current request path (root-relative, including basePath).
+   * The URI of the last request (after any redirects).
    */
-  protected string $currentPath = '/';
+  protected ?UriInterface $uri = null;
 
   /**
    * Cached DomCrawler for the last response body.
@@ -61,7 +62,6 @@ abstract class AbstractWebDriver implements WebDriverInterface {
    */
   public function __construct(UriBuilderInterface $uriBuilder) {
     $this->uriBuilder = $uriBuilder;
-    $this->currentPath = $uriBuilder->getBaseUri()->getPath();
   }
 
   /**
@@ -87,19 +87,9 @@ abstract class AbstractWebDriver implements WebDriverInterface {
    */
   protected function getCrawler(): Crawler {
     if ($this->crawler === null) {
-      $this->crawler = new Crawler($this->lastBody, $this->getBaseUri());
+      $this->crawler = new Crawler($this->lastBody, (string) $this->getUri()->withQuery(''));
     }
     return $this->crawler;
-  }
-
-  /**
-   * Get the base URI for link/form resolution.
-   *
-   * Combines the URI builder's base URI with the current path.
-   */
-  protected function getBaseUri(): string {
-    $base = $this->uriBuilder->getBaseUri();
-    return (string) $base->withPath($this->currentPath);
   }
 
   /**
@@ -249,12 +239,12 @@ abstract class AbstractWebDriver implements WebDriverInterface {
 
     foreach ($inputs as $input) {
       $name = $input->getAttribute('name');
-      $node = new Crawler($input, $this->getBaseUri());
+      $node = new Crawler($input, (string) $this->getUri()->withQuery(''));
 
       // Walk up ancestors looking for alert-danger.
       $parent = $input->parentNode;
       while ($parent && $parent->nodeName !== 'body') {
-        $parentCrawler = new Crawler($parent, $this->getBaseUri());
+        $parentCrawler = new Crawler($parent, (string) $this->getUri()->withQuery(''));
         $alerts = $parentCrawler->filter('.alert.alert-danger');
         if ($alerts->count() > 0) {
           $message = trim($alerts->first()->text(''));
@@ -291,9 +281,21 @@ abstract class AbstractWebDriver implements WebDriverInterface {
 
   /**
    * {@inheritdoc}
+   *
+   * @throws RuntimeException if no request has been made yet.
    */
-  public function getCurrentPath(): string {
-    return $this->currentPath;
+  public function getUri(): UriInterface {
+    if ($this->uri === null) {
+      throw new RuntimeException('No request has been made yet.');
+    }
+    return $this->uri;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function isOnPath(string $path): bool {
+    return $this->build($path, false) === $this->uri->getPath();
   }
 
   /**
@@ -335,7 +337,7 @@ abstract class AbstractWebDriver implements WebDriverInterface {
   public function reset(): void {
     $this->lastResponse = null;
     $this->lastBody = '';
-    $this->currentPath = $this->uriBuilder->getBaseUri()->getPath();
+    $this->uri = null;
     $this->invalidateDomState();
   }
 }

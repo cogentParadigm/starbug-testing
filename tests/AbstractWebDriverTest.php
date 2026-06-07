@@ -217,12 +217,13 @@ class AbstractWebDriverTest extends TestCase {
 
   public function testRootRelativePathPreservedForDefaultBasePath(): void {
     $this->driver->get('test');
-    $this->assertSame('/test', $this->driver->getCurrentPath());
+    $this->assertTrue($this->driver->isOnPath('test'));
   }
 
   public function testRootRelativePathIncludesBasePath(): void {
     $driver = new TestDriver(new UriBuilder(new Uri('https://localhost/myapp/')));
     $driver->get('dashboard');
-    $this->assertSame('/myapp/dashboard', $driver->getCurrentPath());
+    $this->assertSame('/myapp/dashboard', $driver->getUri()->getPath());
+    $this->assertTrue($driver->isOnPath('dashboard'));
   }
 }

@@ -55,9 +55,18 @@ trait WebAssertions {
 
   /**
    * Assert the current request path matches the expected value.
+   *
+   * The expected path is normalized through the driver's build() method,
+   * so it can be passed as an app-relative or root-relative path.
    */
   protected function assertPathEquals(string $expected): void {
-    Assert::assertEquals($expected, $this->getDriver()->getCurrentPath());
+    $expectedPath = $this->getDriver()->build($expected, false);
+    $actualPath = $this->getDriver()->getUri()->getPath();
+    Assert::assertSame(
+      $expectedPath,
+      $actualPath,
+      "Expected path '{$expectedPath}' does not match actual path '{$actualPath}'."
+    );
   }
 
   /**

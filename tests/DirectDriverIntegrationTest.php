@@ -29,7 +29,7 @@ class DirectDriverIntegrationTest extends TestCase {
     $this->driver->get('test');
 
     $this->assertSame(200, $this->driver->getStatusCode());
-    $this->assertSame('/test', $this->driver->getCurrentPath());
+    $this->assertTrue($this->driver->isOnPath('test'));
     $this->assertSame('<html><body>Hello</body></html>', $this->driver->getResponseBody());
   }
 
@@ -48,7 +48,7 @@ class DirectDriverIntegrationTest extends TestCase {
     $this->driver->followLink('Next');
 
     $this->assertCount(2, $this->handler->requests);
-    $this->assertSame('/next', $this->driver->getCurrentPath());
+    $this->assertTrue($this->driver->isOnPath('next'));
   }
 
   public function testResponseBodyContainsText(): void {
@@ -91,7 +91,7 @@ class DirectDriverIntegrationTest extends TestCase {
     $this->driver->get('source');
 
     $this->assertCount(2, $this->handler->requests);
-    $this->assertSame('/target', $this->driver->getCurrentPath());
+    $this->assertTrue($this->driver->isOnPath('target'));
   }
 
   public function testAllCookiesFromJarAreSent(): void {
@@ -111,7 +111,8 @@ class DirectDriverIntegrationTest extends TestCase {
 
     $request = $this->handler->requests[0];
     $this->assertSame('/myapp/admin', $request->getUri()->getPath());
-    $this->assertSame('/myapp/admin', $driver->getCurrentPath());
+    $this->assertSame('/myapp/admin', $driver->getUri()->getPath());
+    $this->assertTrue($driver->isOnPath('admin'));
   }
 
   public function testRedirectStripsBasePath(): void {
@@ -135,7 +136,8 @@ class DirectDriverIntegrationTest extends TestCase {
     $driver->get('source');
 
     $this->assertCount(2, $handler->requests);
-    $this->assertSame('/myapp/target', $driver->getCurrentPath());
+    $this->assertSame('/myapp/target', $driver->getUri()->getPath());
+    $this->assertTrue($driver->isOnPath('target'));
   }
 
   public function testCustomBaseUrlUsedInRequests(): void {

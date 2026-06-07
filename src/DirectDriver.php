@@ -5,10 +5,8 @@ use Traversable;
 use ArrayAccess;
 use GuzzleHttp\Psr7\Utils;
 use GuzzleHttp\Psr7\Uri;
-use GuzzleHttp\Psr7\UriResolver;
 use GuzzleHttp\Psr7\ServerRequest;
 use Psr\Http\Message\ResponseInterface;
-use Psr\Http\Message\UriInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use Starbug\Http\UriBuilderInterface;
 
@@ -125,8 +123,7 @@ class DirectDriver extends AbstractWebDriver {
       $response = $this->handler->handle($request);
     }
 
-    // Track current path as root-relative.
-    $this->currentPath = $uri->getPath();
+    $this->uri = $uri;
 
     return $response;
   }

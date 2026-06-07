@@ -2,6 +2,7 @@
 namespace Starbug\Testing;
 
 use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\UriInterface;
 use Symfony\Component\DomCrawler\Crawler;
 
 /**
@@ -38,9 +39,21 @@ interface WebDriverInterface {
   public function getResponseBody(): string;
 
   /**
-   * Get the current request path (root-relative, after any redirects).
+   * Get the URI of the last request (after any redirects).
    */
-  public function getCurrentPath(): string;
+  public function getUri(): UriInterface;
+
+  /**
+   * Check if the current request path matches the given path.
+   *
+   * The given path is normalized through build(), so it can be passed
+   * as an app-relative or root-relative path.
+   *
+   * @param string $path The path to compare against.
+   *
+   * @return bool True if the current path matches.
+   */
+  public function isOnPath(string $path): bool;
 
   /**
    * Build a URI from an app-relative path.
