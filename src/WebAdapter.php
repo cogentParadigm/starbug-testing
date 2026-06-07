@@ -10,6 +10,7 @@ use Psr\Http\Message\ResponseInterface;
  * while delegating HTTP operations to a WebDriverInterface implementation.
  */
 abstract class WebAdapter implements WebAdapterInterface {
+  use WebAssertions;
 
   public function __construct(protected WebDriverInterface $driver) {
   }

@@ -38,9 +38,30 @@ interface WebDriverInterface {
   public function getResponseBody(): string;
 
   /**
-   * Get the current request path (after any redirects).
+   * Get the current request path (root-relative, after any redirects).
    */
   public function getCurrentPath(): string;
+
+  /**
+   * Build a URI from an app-relative path.
+   *
+   * @param string $path App-relative path.
+   * @param bool $absolute True for an absolute URI, false for root-relative.
+   *
+   * @return string The built URI.
+   */
+  public function build(string $path, bool $absolute = false): string;
+
+  /**
+   * Relativize a URI against the app base URI.
+   *
+   * Strips the base URL and base path to produce an app-relative path.
+   *
+   * @param string $path The URI to relativize.
+   *
+   * @return string The app-relative path.
+   */
+  public function relativize(string $path): string;
 
   /**
    * Get a cookie value from the shared jar.
@@ -60,6 +81,13 @@ interface WebDriverInterface {
    * Throws RuntimeException if not found.
    */
   public function filterOne(string $selector): Crawler;
+
+  /**
+   * Find a link in the last response body by its visible text.
+   *
+   * Returns a DomCrawler (empty if no matches).
+   */
+  public function selectLink(string $text): Crawler;
 
   /**
    * Follow a link in the last response body by its visible text.

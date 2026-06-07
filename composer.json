@@ -31,6 +31,7 @@
     "guzzlehttp/psr7": "^1.7",
     "starbug/bundle": "^1.0",
     "starbug/auth": "^1.0",
+    "starbug/http": "^0.9.14",
     "symfony/dom-crawler": "^5.4|^6.0|^7.0",
     "symfony/process": "^5.4|^6.0|^7.0",
     "phpunit/phpunit": "^9.0"

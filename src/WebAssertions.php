@@ -61,6 +61,21 @@ trait WebAssertions {
   }
 
   /**
+   * Assert a link with the given visible text exists and points to the
+   * expected app-relative path.
+   *
+   * Resolves the href against the current page (per RFC 3986) and compares
+   * the resulting app-relative path. Use `selectLink` directly if you need
+   * to inspect the raw `href` attribute or the resolved absolute URI.
+   */
+  protected function assertLinkHrefEquals(string $text, string $href): void {
+    $link = $this->getDriver()->selectLink($text);
+    Assert::assertGreaterThan(0, $link->count(), "Expected link '{$text}' not found.");
+    $actual = $this->getDriver()->relativize($link->first()->link()->getUri());
+    Assert::assertEquals($href, $actual);
+  }
+
+  /**
    * Get the driver instance.
    *
    * Implementing classes must provide access to the driver

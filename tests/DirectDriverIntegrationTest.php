@@ -1,12 +1,15 @@
 <?php
 namespace Starbug\Testing\Tests;
 
+use Psr\Http\Message\ServerRequestInterface;
 use PHPUnit\Framework\TestCase;
 use Starbug\Testing\DirectDriver;
 use Starbug\Bundle\Bundle;
+use Starbug\Http\UriBuilder;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use GuzzleHttp\Psr7\Response;
+use GuzzleHttp\Psr7\Uri;
 use Starbug\Testing\Tests\Fixtures\MockHandler;
 
 class DirectDriverIntegrationTest extends TestCase {
@@ -18,12 +21,12 @@ class DirectDriverIntegrationTest extends TestCase {
   protected function setUp(): void {
     $this->handler = new MockHandler();
     $this->jar = new Bundle();
-    $this->driver = new DirectDriver($this->handler, $this->jar);
+    $this->driver = new DirectDriver($this->handler, $this->jar, new UriBuilder(new Uri('https://localhost/')));
   }
 
   public function testRequestSetsBodyAndPath(): void {
     $this->handler->responseBody = '<html><body>Hello</body></html>';
-    $this->driver->get('/test');
+    $this->driver->get('test');
 
     $this->assertSame(200, $this->driver->getStatusCode());
     $this->assertSame('/test', $this->driver->getCurrentPath());
@@ -32,7 +35,7 @@ class DirectDriverIntegrationTest extends TestCase {
 
   public function testFilterWorksAfterRequest(): void {
     $this->handler->responseBody = '<html><body><div class="msg">Hello</div></body></html>';
-    $this->driver->get('/page');
+    $this->driver->get('page');
 
     $nodes = $this->driver->filter('.msg');
     $this->assertSame(1, $nodes->count());
@@ -41,23 +44,22 @@ class DirectDriverIntegrationTest extends TestCase {
 
   public function testFollowLinkDispatchesGet(): void {
     $this->handler->responseBody = '<html><body><a href="/next">Next</a></body></html>';
-    $this->driver->get('/start');
+    $this->driver->get('start');
     $this->driver->followLink('Next');
 
     $this->assertCount(2, $this->handler->requests);
     $this->assertSame('/next', $this->driver->getCurrentPath());
   }
 
-  public function testAssertContainsWorksAfterRequest(): void {
+  public function testResponseBodyContainsText(): void {
     $this->handler->responseBody = '<html><body>Welcome</body></html>';
     $this->driver->get('/');
-    $this->driver->assertContains('Welcome');
-    $this->addToAssertionCount(1);
+    $this->assertStringContainsString('Welcome', $this->driver->getResponseBody());
   }
 
   public function testFormSubmissionViaPressButton(): void {
     $this->handler->responseBody = '<form action="/submit" method="post"><input name="email"/><button type="submit">Save</button></form>';
-    $this->driver->get('/form');
+    $this->driver->get('form');
     $this->driver->fillField('email', 'test@example.com');
     $this->driver->pressButton('Save');
 
@@ -80,13 +82,13 @@ class DirectDriverIntegrationTest extends TestCase {
       public function __construct(array $responses) {
         $this->responses = $responses;
       }
-      public function handle(\Psr\Http\Message\ServerRequestInterface $request): \Psr\Http\Message\ResponseInterface {
+      public function handle(ServerRequestInterface $request): ResponseInterface {
         $this->requests[] = $request;
         return $this->responses[$this->index++];
       }
     };
-    $this->driver = new DirectDriver($this->handler, $this->jar);
-    $this->driver->get('/source');
+    $this->driver = new DirectDriver($this->handler, $this->jar, new UriBuilder(new Uri('https://localhost/')));
+    $this->driver->get('source');
 
     $this->assertCount(2, $this->handler->requests);
     $this->assertSame('/target', $this->driver->getCurrentPath());
@@ -104,12 +106,12 @@ class DirectDriverIntegrationTest extends TestCase {
   }
 
   public function testBasePathPrependedToRequests(): void {
-    $driver = new DirectDriver($this->handler, $this->jar, basePath: '/myapp/');
-    $driver->get('/admin');
+    $driver = new DirectDriver($this->handler, $this->jar, new UriBuilder(new Uri('https://localhost/myapp/')));
+    $driver->get('admin');
 
     $request = $this->handler->requests[0];
     $this->assertSame('/myapp/admin', $request->getUri()->getPath());
-    $this->assertSame('/admin', $driver->getCurrentPath());
+    $this->assertSame('/myapp/admin', $driver->getCurrentPath());
   }
 
   public function testRedirectStripsBasePath(): void {
@@ -124,21 +126,21 @@ class DirectDriverIntegrationTest extends TestCase {
       public function __construct(array $responses) {
         $this->responses = $responses;
       }
-      public function handle(\Psr\Http\Message\ServerRequestInterface $request): \Psr\Http\Message\ResponseInterface {
+      public function handle(ServerRequestInterface $request): ResponseInterface {
         $this->requests[] = $request;
         return $this->responses[$this->index++];
       }
     };
-    $driver = new DirectDriver($handler, $this->jar, basePath: '/myapp/');
-    $driver->get('/source');
+    $driver = new DirectDriver($handler, $this->jar, new UriBuilder(new Uri('https://localhost/myapp/')));
+    $driver->get('source');
 
     $this->assertCount(2, $handler->requests);
-    $this->assertSame('/target', $driver->getCurrentPath());
+    $this->assertSame('/myapp/target', $driver->getCurrentPath());
   }
 
   public function testCustomBaseUrlUsedInRequests(): void {
-    $driver = new DirectDriver($this->handler, $this->jar, baseUrl: 'https://app.local.com');
-    $driver->get('/login');
+    $driver = new DirectDriver($this->handler, $this->jar, new UriBuilder(new Uri('https://app.local.com/')));
+    $driver->get('login');
 
     $request = $this->handler->requests[0];
     $this->assertSame('https://app.local.com/login', (string) $request->getUri());

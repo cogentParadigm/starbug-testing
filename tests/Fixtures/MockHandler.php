@@ -1,6 +1,7 @@
 <?php
 namespace Starbug\Testing\Tests\Fixtures;
 
+use GuzzleHttp\Psr7\Response;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
@@ -15,6 +16,6 @@ class MockHandler implements RequestHandlerInterface {
 
   public function handle(ServerRequestInterface $request): ResponseInterface {
     $this->requests[] = $request;
-    return new \GuzzleHttp\Psr7\Response($this->statusCode, [], $this->responseBody);
+    return new Response($this->statusCode, [], $this->responseBody);
   }
 }

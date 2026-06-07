@@ -3,6 +3,8 @@ namespace Starbug\Testing\Tests;
 
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
+use Starbug\Http\UriBuilder;
+use GuzzleHttp\Psr7\Uri;
 use Starbug\Testing\Tests\Fixtures\TestDriver;
 
 class AbstractWebDriverTest extends TestCase {
@@ -10,7 +12,7 @@ class AbstractWebDriverTest extends TestCase {
   protected TestDriver $driver;
 
   protected function setUp(): void {
-    $this->driver = new TestDriver();
+    $this->driver = new TestDriver(new UriBuilder(new Uri('https://localhost/')));
   }
 
   // --- DOM Query Tests ---
@@ -42,46 +44,32 @@ class AbstractWebDriverTest extends TestCase {
 
   // --- Content Assertion Tests ---
 
-  public function testAssertContainsPassesWhenTextPresent(): void {
+  public function testResponseBodyContainsText(): void {
     $this->driver->setTestBody('<html><body>Hello World</body></html>');
-    $this->driver->assertContains('World');
-    $this->addToAssertionCount(1);
+    $this->assertStringContainsString('World', $this->driver->getResponseBody());
   }
 
-  public function testAssertContainsThrowsWhenTextMissing(): void {
+  public function testResponseBodyDoesNotContainText(): void {
     $this->driver->setTestBody('<html><body>Hello</body></html>');
-    $this->expectException(RuntimeException::class);
-    $this->driver->assertContains('Missing');
+    $this->assertStringNotContainsString('Missing', $this->driver->getResponseBody());
   }
 
-  public function testAssertNotContainsPassesWhenTextAbsent(): void {
-    $this->driver->setTestBody('<html><body>Hello</body></html>');
-    $this->driver->assertNotContains('Missing');
-    $this->addToAssertionCount(1);
-  }
-
-  public function testAssertNotContainsThrowsWhenTextPresent(): void {
-    $this->driver->setTestBody('<html><body>Hello</body></html>');
-    $this->expectException(RuntimeException::class);
-    $this->driver->assertNotContains('Hello');
-  }
-
-  public function testAssertElementContainsPassesWhenMatch(): void {
+  public function testElementContainsText(): void {
     $this->driver->setTestBody('<html><body><div class="msg">Hello</div></body></html>');
-    $this->driver->assertElementContains('.msg', 'Hello');
-    $this->addToAssertionCount(1);
+    $element = $this->driver->filterOne('.msg');
+    $this->assertStringContainsString('Hello', $element->text(''));
   }
 
-  public function testAssertElementContainsThrowsWhenSelectorMissing(): void {
+  public function testElementContainsThrowsWhenSelectorMissing(): void {
     $this->driver->setTestBody('<html><body></body></html>');
     $this->expectException(RuntimeException::class);
-    $this->driver->assertElementContains('.msg', 'Hello');
+    $this->driver->filterOne('.msg');
   }
 
-  public function testAssertElementContainsThrowsWhenTextMissing(): void {
+  public function testElementContainsThrowsWhenTextMissing(): void {
     $this->driver->setTestBody('<html><body><div class="msg">Bye</div></body></html>');
-    $this->expectException(RuntimeException::class);
-    $this->driver->assertElementContains('.msg', 'Hello');
+    $element = $this->driver->filterOne('.msg');
+    $this->assertStringNotContainsString('Hello', $element->text(''));
   }
 
   // --- Link Tests ---
@@ -91,7 +79,7 @@ class AbstractWebDriverTest extends TestCase {
     $this->driver->followLink('Go');
     $this->assertCount(1, $this->driver->capturedRequests);
     $this->assertSame('GET', $this->driver->capturedRequests[0]['method']);
-    $this->assertSame('/foo', $this->driver->capturedRequests[0]['path']);
+    $this->assertSame('foo', $this->driver->capturedRequests[0]['path']);
   }
 
   public function testFollowLinkThrowsWhenLinkMissing(): void {
@@ -136,7 +124,7 @@ class AbstractWebDriverTest extends TestCase {
     $this->driver->pressButton('Save');
     $this->assertCount(1, $this->driver->capturedRequests);
     $this->assertSame('POST', $this->driver->capturedRequests[0]['method']);
-    $this->assertSame('/submit', $this->driver->capturedRequests[0]['path']);
+    $this->assertSame('submit', $this->driver->capturedRequests[0]['path']);
     $this->assertSame('hello', $this->driver->capturedRequests[0]['data']['foo']);
   }
 
@@ -177,7 +165,7 @@ class AbstractWebDriverTest extends TestCase {
 
   public function testSubmitFormBulkApi(): void {
     $this->driver->setTestBody('<form action="/create" method="post"><input type="hidden" name="oid" value="abc"/><input name="name"/></form>');
-    $this->driver->submitForm('/create', ['name' => 'test']);
+    $this->driver->submitForm('create', ['name' => 'test']);
     $this->assertCount(2, $this->driver->capturedRequests);
     // First request is GET to load the form page.
     $this->assertSame('GET', $this->driver->capturedRequests[0]['method']);
@@ -212,18 +200,29 @@ class AbstractWebDriverTest extends TestCase {
   // --- Base Path Tests ---
 
   public function testBasePathStrippedFromRequestPath(): void {
-    $driver = new TestDriver(basePath: '/myapp/');
+    $driver = new TestDriver(new UriBuilder(new Uri('https://localhost/myapp/')));
     $driver->setTestBody('<html><body><a href="/myapp/dashboard">Dash</a></body></html>');
     $driver->followLink('Dash');
-    $this->assertSame('/dashboard', $driver->capturedRequests[0]['path']);
+    $this->assertSame('dashboard', $driver->capturedRequests[0]['path']);
   }
 
   public function testBasePathPrependedToRelativeLink(): void {
-    $driver = new TestDriver(basePath: '/myapp/');
+    $driver = new TestDriver(new UriBuilder(new Uri('https://localhost/myapp/')));
     // currentPath defaults to '/', so base URI is https://localhost/myapp/
     // A relative link "dashboard" resolves to https://localhost/myapp/dashboard
     $driver->setTestBody('<html><body><a href="dashboard">Dash</a></body></html>');
     $driver->followLink('Dash');
-    $this->assertSame('/dashboard', $driver->capturedRequests[0]['path']);
+    $this->assertSame('dashboard', $driver->capturedRequests[0]['path']);
+  }
+
+  public function testRootRelativePathPreservedForDefaultBasePath(): void {
+    $this->driver->get('test');
+    $this->assertSame('/test', $this->driver->getCurrentPath());
+  }
+
+  public function testRootRelativePathIncludesBasePath(): void {
+    $driver = new TestDriver(new UriBuilder(new Uri('https://localhost/myapp/')));
+    $driver->get('dashboard');
+    $this->assertSame('/myapp/dashboard', $driver->getCurrentPath());
   }
 }

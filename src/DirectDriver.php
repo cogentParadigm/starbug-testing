@@ -4,11 +4,13 @@ namespace Starbug\Testing;
 use Traversable;
 use ArrayAccess;
 use GuzzleHttp\Psr7\Utils;
-use Psr\Http\Message\UriInterface;
 use GuzzleHttp\Psr7\Uri;
+use GuzzleHttp\Psr7\UriResolver;
 use GuzzleHttp\Psr7\ServerRequest;
 use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\UriInterface;
 use Psr\Http\Server\RequestHandlerInterface;
+use Starbug\Http\UriBuilderInterface;
 
 /**
  * DirectDriver dispatches HTTP requests through the application middleware
@@ -18,9 +20,8 @@ use Psr\Http\Server\RequestHandlerInterface;
  * redirects up to a configured maximum depth.
  *
  * Configuration:
- * - $baseUrl    Scheme + host (e.g. "https://app.local.com")
- * - $basePath   App mount point (e.g. "/myapp/"). Paths passed to the
- *               driver are app-relative; basePath is prepended internally.
+ * - $uriBuilder UriBuilderInterface wired with the correct base URL and path.
+ *   Paths passed to the driver are app-relative; the builder handles resolution.
  */
 class DirectDriver extends AbstractWebDriver {
 
@@ -44,18 +45,16 @@ class DirectDriver extends AbstractWebDriver {
    *
    * @param RequestHandlerInterface $handler The application request handler.
    * @param Traversable|array $jar Shared cookie jar.
-   * @param string $baseUrl Scheme + host (default "https://localhost").
-   * @param string $basePath App mount point (default "/").
+   * @param UriBuilderInterface $uriBuilder The URI builder for the app.
    * @param int $maxRedirects Maximum redirect follows (default 5).
    */
   public function __construct(
     RequestHandlerInterface $handler,
     Traversable|array $jar,
-    string $baseUrl = 'https://localhost',
-    string $basePath = '/',
+    UriBuilderInterface $uriBuilder,
     int $maxRedirects = 5
   ) {
-    parent::__construct($baseUrl, $basePath);
+    parent::__construct($uriBuilder);
     $this->handler = $handler;
     $this->jar = $jar;
     $this->maxRedirects = $maxRedirects;
@@ -95,7 +94,7 @@ class DirectDriver extends AbstractWebDriver {
     array $data,
     array $headers
   ): ResponseInterface {
-    $uri = $this->buildUri($path);
+    $uri = new Uri($this->build($path, true));
     $request = new ServerRequest($method, $uri, $headers);
 
     // Seed all cookies from the shared jar.
@@ -126,19 +125,10 @@ class DirectDriver extends AbstractWebDriver {
       $response = $this->handler->handle($request);
     }
 
-    // Track current path as app-relative.
-    $this->currentPath = $this->normalizePath($uri->getPath());
+    // Track current path as root-relative.
+    $this->currentPath = $uri->getPath();
 
     return $response;
-  }
-
-  /**
-   * Build a URI from an app-relative path.
-   */
-  protected function buildUri(string $path): UriInterface {
-    $path = '/' . ltrim($path, '/');
-    $fullPath = $this->buildAbsolutePath($path);
-    return new Uri($this->baseUrl . $fullPath);
   }
 
   /**
@@ -152,22 +142,11 @@ class DirectDriver extends AbstractWebDriver {
   /**
    * Extract the Location header from a response.
    *
-   * Strips baseUrl and basePath to produce an app-relative path.
+   * Relativizes the location to produce an app-relative path.
    */
   protected function getLocation(ResponseInterface $response): ?string {
     $location = $response->getHeaderLine('Location');
-    if (empty($location)) {
-      return null;
-    }
-    // If absolute URL matching our base, extract path.
-    if (str_starts_with($location, $this->baseUrl)) {
-      $location = parse_url($location, PHP_URL_PATH) ?: '/';
-    }
-    // Strip basePath to keep currentPath app-relative.
-    if ($this->basePath !== '/' && str_starts_with($location, $this->basePath)) {
-      $location = '/' . ltrim(substr($location, strlen($this->basePath)), '/');
-    }
-    return $location;
+    return empty($location) ? null : $this->relativize($location);
   }
 
   public function getCookie(string $name): ?string {

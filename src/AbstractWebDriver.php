@@ -3,6 +3,7 @@ namespace Starbug\Testing;
 
 use RuntimeException;
 use Psr\Http\Message\ResponseInterface;
+use Starbug\Http\UriBuilderInterface;
 use Symfony\Component\DomCrawler\Crawler;
 
 /**
@@ -16,9 +17,8 @@ use Symfony\Component\DomCrawler\Crawler;
  * form interaction.
  *
  * Configuration:
- * - $baseUrl    Scheme + host (e.g. "https://localhost")
- * - $basePath   App mount point (e.g. "/myapp/"). Paths passed to the
- *               driver are app-relative; basePath is prepended internally.
+ * - $uriBuilder UriBuilderInterface wired with the correct base URL and path.
+ *   Paths passed to the driver are app-relative; the builder handles resolution.
  */
 abstract class AbstractWebDriver implements WebDriverInterface {
 
@@ -33,7 +33,7 @@ abstract class AbstractWebDriver implements WebDriverInterface {
   protected string $lastBody = '';
 
   /**
-   * The current request path (app-relative, without basePath).
+   * The current request path (root-relative, including basePath).
    */
   protected string $currentPath = '/';
 
@@ -50,58 +50,36 @@ abstract class AbstractWebDriver implements WebDriverInterface {
   protected array $formValues = [];
 
   /**
-   * Base URL (scheme + host, no trailing slash).
+   * URI builder for constructing and relativizing paths.
    */
-  protected string $baseUrl = 'https://localhost';
-
-  /**
-   * Base path (e.g. "/myapp/"). Always starts and ends with "/".
-   * Defaults to "/" for apps mounted at the domain root.
-   */
-  protected string $basePath = '/';
+  protected UriBuilderInterface $uriBuilder;
 
   /**
    * Create a new AbstractWebDriver.
    *
-   * @param string $baseUrl Scheme + host (default "https://localhost").
-   * @param string $basePath App mount point (default "/").
+   * @param UriBuilderInterface $uriBuilder The URI builder for the app.
    */
-  public function __construct(
-    string $baseUrl = 'https://localhost',
-    string $basePath = '/'
-  ) {
-    $this->baseUrl = rtrim($baseUrl, '/');
-    $this->basePath = $this->normalizeBasePath($basePath);
+  public function __construct(UriBuilderInterface $uriBuilder) {
+    $this->uriBuilder = $uriBuilder;
+    $this->currentPath = $uriBuilder->getBaseUri()->getPath();
   }
 
   /**
-   * Normalize a base path so it always starts and ends with "/".
+   * Build a URI from an app-relative path.
+   *
+   * {@inheritdoc}
    */
-  protected function normalizeBasePath(string $path): string {
-    $path = trim($path, '/');
-    return $path === '' ? '/' : '/' . $path . '/';
+  public function build(string $path, bool $absolute = false): string {
+    return (string) $this->uriBuilder->build($path, $absolute);
   }
 
   /**
-   * Strip basePath from a server path to produce an app-relative path.
+   * Relativize a URI against the app base URI.
+   *
+   * {@inheritdoc}
    */
-  protected function normalizePath(string $path): string {
-    $path = '/' . ltrim($path, '/');
-    if ($this->basePath !== '/' && str_starts_with($path, $this->basePath)) {
-      $path = '/' . ltrim(substr($path, strlen($this->basePath)), '/');
-    }
-    return $path;
-  }
-
-  /**
-   * Build a server-absolute path from an app-relative path.
-   */
-  protected function buildAbsolutePath(string $path): string {
-    $path = '/' . ltrim($path, '/');
-    if ($this->basePath === '/') {
-      return $path;
-    }
-    return $this->basePath . ltrim($path, '/');
+  public function relativize(string $path): string {
+    return (string) $this->uriBuilder->relativize($path);
   }
 
   /**
@@ -117,13 +95,11 @@ abstract class AbstractWebDriver implements WebDriverInterface {
   /**
    * Get the base URI for link/form resolution.
    *
-   * Combines baseUrl + basePath + currentPath.
+   * Combines the URI builder's base URI with the current path.
    */
   protected function getBaseUri(): string {
-    if ($this->basePath === '/') {
-      return $this->baseUrl . $this->currentPath;
-    }
-    return $this->baseUrl . $this->basePath . ltrim($this->currentPath, '/');
+    $base = $this->uriBuilder->getBaseUri();
+    return (string) $base->withPath($this->currentPath);
   }
 
   /**
@@ -156,24 +132,22 @@ abstract class AbstractWebDriver implements WebDriverInterface {
 
   /**
    * {@inheritdoc}
+   */
+  public function selectLink(string $text): Crawler {
+    return $this->getCrawler()->selectLink($text);
+  }
+
+  /**
+   * {@inheritdoc}
    *
    * @throws RuntimeException if the link is not found.
    */
   public function followLink(string $text): void {
-    $link = $this->getCrawler()->selectLink($text);
+    $link = $this->selectLink($text);
     if ($link->count() === 0) {
       throw new RuntimeException("Link with text '{$text}' not found.");
     }
-    $uri = $link->first()->link()->getUri();
-    // Strip base URL to get server path.
-    if (str_starts_with($uri, $this->baseUrl)) {
-      $uri = parse_url($uri, PHP_URL_PATH) ?: '/';
-    }
-    // Strip basePath so request receives app-relative path.
-    if ($this->basePath !== '/' && str_starts_with($uri, $this->basePath)) {
-      $uri = '/' . ltrim(substr($uri, strlen($this->basePath)), '/');
-    }
-    $this->request('GET', $uri);
+    $this->request('GET', $this->relativize($link->first()->link()->getUri()));
   }
 
   /**
@@ -218,19 +192,12 @@ abstract class AbstractWebDriver implements WebDriverInterface {
     $form = $btn->first()->form();
     $data = $this->formValues + $form->getPhpValues();
 
-    $uri = $form->getUri();
-    $method = strtoupper($form->getMethod());
-
-    // Extract app-relative path from absolute URI.
-    if (str_starts_with($uri, $this->baseUrl)) {
-      $uri = parse_url($uri, PHP_URL_PATH) ?: '/';
-    }
-    if ($this->basePath !== '/' && str_starts_with($uri, $this->basePath)) {
-      $uri = '/' . ltrim(substr($uri, strlen($this->basePath)), '/');
-    }
-
     $this->formValues = [];
-    $this->request($method, $uri, $data);
+    $this->request(
+      strtoupper($form->getMethod()),
+      $this->relativize($form->getUri()),
+      $data
+    );
   }
 
   /**
@@ -257,18 +224,11 @@ abstract class AbstractWebDriver implements WebDriverInterface {
     $form = $formNode->first()->form();
     $form->setValues($data);
 
-    $uri = $form->getUri();
-    $method = strtoupper($form->getMethod());
-
-    // Extract app-relative path from absolute URI.
-    if (str_starts_with($uri, $this->baseUrl)) {
-      $uri = parse_url($uri, PHP_URL_PATH) ?: '/';
-    }
-    if ($this->basePath !== '/' && str_starts_with($uri, $this->basePath)) {
-      $uri = '/' . ltrim(substr($uri, strlen($this->basePath)), '/');
-    }
-
-    $this->request($method, $uri, $form->getPhpValues());
+    $this->request(
+      strtoupper($form->getMethod()),
+      $this->relativize($form->getUri()),
+      $form->getPhpValues()
+    );
   }
 
   /**
@@ -375,7 +335,7 @@ abstract class AbstractWebDriver implements WebDriverInterface {
   public function reset(): void {
     $this->lastResponse = null;
     $this->lastBody = '';
-    $this->currentPath = '/';
+    $this->currentPath = $this->uriBuilder->getBaseUri()->getPath();
     $this->invalidateDomState();
   }
 }
