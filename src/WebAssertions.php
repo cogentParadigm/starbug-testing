@@ -85,6 +85,36 @@ trait WebAssertions {
   }
 
   /**
+   * Assert a table contains the expected column headers.
+   *
+   * @param string $selector CSS selector for the table element.
+   * @param array  $expected List of expected header text strings.
+   */
+  protected function assertTableColumns(string $selector, array $expected): void {
+    $headers = $this->getDriver()->filter("{$selector} th");
+    $actual = [];
+    foreach ($headers as $node) {
+      $actual[] = trim($node->textContent);
+    }
+    foreach ($expected as $column) {
+      Assert::assertContains($column, $actual, "Expected column '{$column}' not found in table.");
+    }
+  }
+
+  /**
+   * Assert a downloaded text file contains the expected strings.
+   *
+   * @param string $url      The URL to download.
+   * @param array  $expected List of strings expected in the response.
+   */
+  protected function assertTextDownloadContains(string $url, array $expected): void {
+    $body = $this->getDriver()->download($url);
+    foreach ($expected as $text) {
+      Assert::assertStringContainsString($text, $body);
+    }
+  }
+
+  /**
    * Get the driver instance.
    *
    * Implementing classes must provide access to the driver
