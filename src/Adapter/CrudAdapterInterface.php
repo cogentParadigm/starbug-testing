@@ -41,7 +41,7 @@ interface CrudAdapterInterface {
   /**
    * Assert the last create operation succeeded.
    */
-  public function assertCreated(): void;
+  public function assertCreated(): array;
 
   /**
    * Assert the last read operation succeeded.

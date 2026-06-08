@@ -61,8 +61,9 @@ abstract class CrudShellAdapter extends ShellAdapter implements CrudAdapterInter
     $this->lastOutput = $result['stdout'] . $result['stderr'];
   }
 
-  public function assertCreated(): void {
+  public function assertCreated(): array {
     $this->assertNoErrorsInOutput();
+    return $this->assertRecordCreated($this->entity);
   }
 
   public function assertRead(int $id): void {

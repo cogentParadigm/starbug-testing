@@ -18,8 +18,11 @@ abstract class CrudWebAdapter extends WebAdapter implements CrudAdapterInterface
 
   protected string $basePath = '';
   protected string $entityLabel = '';
+  protected string $entity = '';
   protected string $tableSelector = 'table';
-  protected array $expectedColumns = [];
+  protected array $listColumns = [];
+  protected string $exportUrl = '';
+  protected array $exportColumns = [];
 
   public function __construct(
     WebDriverInterface $driver,
@@ -50,8 +53,9 @@ abstract class CrudWebAdapter extends WebAdapter implements CrudAdapterInterface
     $this->visit($this->basePath);
   }
 
-  public function assertCreated(): void {
+  public function assertCreated(): array {
     $this->assertPathEquals('/' . $this->basePath);
+    return $this->assertRecordCreated($this->entity);
   }
 
   public function assertRead(int $id): void {
@@ -70,8 +74,11 @@ abstract class CrudWebAdapter extends WebAdapter implements CrudAdapterInterface
     $this->assertPathEquals('/' . $this->basePath);
     $this->assertPageContains('New ' . $this->entityLabel);
     $this->assertLinkHrefEquals('New ' . $this->entityLabel, $this->basePath . '/create');
-    if (!empty($this->expectedColumns)) {
-      $this->assertTableColumns($this->tableSelector, $this->expectedColumns);
+    if (!empty($this->listColumns)) {
+      $this->assertTableColumns($this->tableSelector, $this->listColumns);
+    }
+    if (!empty($this->exportUrl)) {
+      $this->assertTextDownloadContains($this->exportUrl, $this->exportColumns);
     }
   }
 

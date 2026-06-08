@@ -32,6 +32,19 @@ trait DatabaseAssertions {
   }
 
   /**
+   * Assert a record was created by the last insert operation.
+   *
+   * @param string $entity The table/model name.
+   * @param string|null $message Optional assertion message.
+   *
+   * @return array The created record.
+   */
+  protected function assertRecordCreated(string $entity, ?string $message = null): array {
+    $id = $this->getDatabase()->getInsertId($entity);
+    return $this->assertRecordExists($entity, ['id' => $id], $message ?? "Expected a newly created {$entity} record.");
+  }
+
+  /**
    * Assert a record exists matching the given conditions.
    *
    * @param string $entity The table/model name.

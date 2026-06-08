@@ -20,12 +20,14 @@ class Crud {
    * Create a record.
    *
    * @param bool $expectSuccess Whether to assert the operation succeeded.
+   * @return array The created record if expectSuccess is true, otherwise empty.
    */
-  public function create(array $data, bool $expectSuccess = true): void {
+  public function create(array $data, bool $expectSuccess = true): array {
     $this->adapter->create($data);
     if ($expectSuccess) {
-      $this->adapter->assertCreated();
+      return $this->adapter->assertCreated();
     }
+    return [];
   }
 
   /**
@@ -73,9 +75,11 @@ class Crud {
 
   /**
    * Assert the last create operation succeeded.
+   *
+   * @return array The created record.
    */
-  public function assertCreated(): void {
-    $this->adapter->assertCreated();
+  public function assertCreated(): array {
+    return $this->adapter->assertCreated();
   }
 
   /**
