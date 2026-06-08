@@ -108,4 +108,63 @@ trait DatabaseAssertions {
     Assert::assertNotEmpty($record, $message ?? "Expected a {$entity} record where {$field} contains '{$value}'.");
     return $record;
   }
+
+  /**
+   * Assert a record matches expected field values.
+   *
+   * @param string $entity The table/model name.
+   * @param array|int|string $locator Column-value conditions to locate the record, or a single ID.
+   * @param array|string $expected Map of field name => expected value, or a single flag field name asserting '1'.
+   * @param string|null $message Optional assertion message.
+   *
+   * @return array The matching record.
+   */
+  protected function assertRecordMatches(string $entity, array|int|string $locator, array|string $expected, ?string $message = null): array {
+    $conditions = is_array($locator) ? $locator : ['id' => $locator];
+    $record = $this->assertRecordExists($entity, $conditions, $message);
+
+    if (is_string($expected)) {
+      $expected = [$expected => '1'];
+    }
+
+    foreach ($expected as $field => $value) {
+      Assert::assertArrayHasKey($field, $record, "Record missing expected field '{$field}'.");
+      Assert::assertEquals($value, $record[$field], $message ?? "Expected {$entity}.{$field} to equal '{$value}', got '{$record[$field]}'.");
+    }
+    return $record;
+  }
+
+  /**
+   * Assert a record does NOT match expected field values.
+   *
+   * When $expected is an array, at least one field must differ (Option B).
+   * When $expected is a string flag, asserts the flag is '0'.
+   *
+   * @param string $entity The table/model name.
+   * @param array|int|string $locator Column-value conditions to locate the record, or a single ID.
+   * @param array|string $expected Map of field name => expected value, or a single flag field name asserting '0'.
+   * @param string|null $message Optional assertion message.
+   *
+   * @return array The matching record.
+   */
+  protected function assertRecordNotMatches(string $entity, array|int|string $locator, array|string $expected, ?string $message = null): array {
+    $conditions = is_array($locator) ? $locator : ['id' => $locator];
+    $record = $this->assertRecordExists($entity, $conditions, $message);
+
+    if (is_string($expected)) {
+      Assert::assertArrayHasKey($expected, $record, "Record missing expected field '{$expected}'.");
+      Assert::assertEquals('0', $record[$expected], $message ?? "Expected {$entity}.{$expected} to equal '0', got '{$record[$expected]}'.");
+      return $record;
+    }
+
+    $mismatchFound = false;
+    foreach ($expected as $field => $value) {
+      Assert::assertArrayHasKey($field, $record, "Record missing expected field '{$field}'.");
+      if ($record[$field] !== $value) {
+        $mismatchFound = true;
+      }
+    }
+    Assert::assertTrue($mismatchFound, $message ?? "Expected {$entity} record to differ from " . json_encode($expected) . ", but all fields matched.");
+    return $record;
+  }
 }
