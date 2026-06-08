@@ -63,7 +63,9 @@ abstract class CrudShellAdapter extends ShellAdapter implements CrudAdapterInter
 
   public function assertCreated(): array {
     $this->assertNoErrorsInOutput();
-    return $this->assertRecordCreated($this->entity);
+    $record = $this->parseTabularOutput($this->lastOutput);
+    Assert::assertNotEmpty($record, 'Expected created record in tabular output');
+    return $record;
   }
 
   public function assertRead(int $id): void {
@@ -107,8 +109,8 @@ abstract class CrudShellAdapter extends ShellAdapter implements CrudAdapterInter
       return [];
     }
 
-    $headers = str_getcsv(array_pop($lines), "\t");
     $values  = str_getcsv(array_pop($lines), "\t");
+    $headers = str_getcsv(array_pop($lines), "\t");
 
     return array_combine($headers, $values);
   }
