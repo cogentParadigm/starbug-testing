@@ -72,8 +72,9 @@ abstract class CrudShellAdapter extends ShellAdapter implements CrudAdapterInter
     $this->assertNoErrorsInOutput();
   }
 
-  public function assertUpdated(): void {
+  public function assertUpdated(): array {
     $this->assertNoErrorsInOutput();
+    return $this->db->query($this->entity)->sort("modified DESC")->one();
   }
 
   public function assertDeleted(): void {

@@ -62,8 +62,9 @@ abstract class CrudWebAdapter extends WebAdapter implements CrudAdapterInterface
     $this->assertPathEquals('/' . $this->basePath . '/update/' . $id);
   }
 
-  public function assertUpdated(): void {
+  public function assertUpdated(): array {
     $this->assertPathEquals('/' . $this->basePath);
+    return $this->db->query($this->entity)->sort("modified DESC")->one();
   }
 
   public function assertDeleted(): void {

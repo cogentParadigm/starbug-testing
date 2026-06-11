@@ -50,8 +50,10 @@ interface CrudAdapterInterface {
 
   /**
    * Assert the last update operation succeeded.
+   *
+   * @return array The updated record.
    */
-  public function assertUpdated(): void;
+  public function assertUpdated(): array;
 
   /**
    * Assert the last delete operation succeeded.

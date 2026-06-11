@@ -1,6 +1,7 @@
 <?php
 namespace Starbug\Testing\Domain;
 
+use PHPUnit\Framework\Assert;
 use Starbug\Testing\Adapter\CrudAdapterInterface;
 
 /**
@@ -31,6 +32,22 @@ class Crud {
   }
 
   /**
+   * Create a record and assert the returned record matches expected fields.
+   *
+   * @param array $matchData Fields that must match in the returned record.
+   * @param array $storeOnlyData Fields to include in the create but not match.
+   * @return array The created record.
+   */
+  public function createAndMatch(array $matchData, array $storeOnlyData = []): array {
+    $record = $this->create($matchData + $storeOnlyData);
+    foreach ($matchData as $field => $expected) {
+      Assert::assertArrayHasKey($field, $record, "Created record missing expected field '{$field}'.");
+      Assert::assertEquals($expected, $record[$field], "Expected created record field '{$field}' to equal '{$expected}', got '{$record[$field]}'.");
+    }
+    return $record;
+  }
+
+  /**
    * Read a single record by ID.
    *
    * @return array Associative array of field values.
@@ -45,12 +62,31 @@ class Crud {
    * Update a record.
    *
    * @param bool $expectSuccess Whether to assert the operation succeeded.
+   * @return array The updated record if expectSuccess is true, otherwise empty.
    */
-  public function update(int $id, array $data, bool $expectSuccess = true): void {
+  public function update(int $id, array $data, bool $expectSuccess = true): array {
     $this->adapter->update($id, $data);
     if ($expectSuccess) {
-      $this->adapter->assertUpdated();
+      return $this->adapter->assertUpdated();
     }
+    return [];
+  }
+
+  /**
+   * Update a record and assert the returned record matches expected fields.
+   *
+   * @param int $id The record ID.
+   * @param array $matchData Fields that must match in the returned record.
+   * @param array $storeOnlyData Fields to include in the update but not match.
+   * @return array The updated record.
+   */
+  public function updateAndMatch(int $id, array $matchData, array $storeOnlyData = []): array {
+    $record = $this->update($id, $matchData + $storeOnlyData);
+    foreach ($matchData as $field => $expected) {
+      Assert::assertArrayHasKey($field, $record, "Updated record missing expected field '{$field}'.");
+      Assert::assertEquals($expected, $record[$field], "Expected updated record field '{$field}' to equal '{$expected}', got '{$record[$field]}'.");
+    }
+    return $record;
   }
 
   /**
@@ -84,9 +120,11 @@ class Crud {
 
   /**
    * Assert the last update operation succeeded.
+   *
+   * @return array The updated record.
    */
-  public function assertUpdated(): void {
-    $this->adapter->assertUpdated();
+  public function assertUpdated(): array {
+    return $this->adapter->assertUpdated();
   }
 
   /**
