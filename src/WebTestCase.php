@@ -3,13 +3,8 @@ namespace Starbug\Testing;
 
 /**
  * Base class for web acceptance tests.
- *
- * Provides fixture loading (via DatabaseTestCase) and a protected
- * WebDriverInterface property. The default driver is DirectDriver
- * (in-process). Subclasses may override createDriver() to use a
- * different transport (e.g. BrowserDriver for JavaScript tests).
  */
-abstract class WebTestCase extends DatabaseTestCase {
+abstract class WebTestCase extends BaseTestCase {
   use WebAssertions;
 
   /**
